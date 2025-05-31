@@ -4,11 +4,12 @@
 import type { User } from 'firebase/auth';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase'; // Import auth
+import { auth } from '@/lib/firebase'; 
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   signOut,
+  createUserWithEmailAndPassword, // Adicionado
   type AuthError
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -18,13 +19,13 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, pass: string) => Promise<User | null>;
   logout: () => Promise<void>;
-  // register?: (email: string, pass: string) => Promise<User | null>; // Para o futuro
+  register: (email: string, pass: string) => Promise<User | null>; // Adicionado
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null); // Inicializar com null
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
@@ -40,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []); // Não precisa de 'auth' como dependência aqui, pois 'auth' é estável
+  }, []);
 
   const login = async (email: string, password: string): Promise<User | null> => {
     try {
@@ -50,7 +51,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const authError = error as AuthError;
       console.error("Login error:", authError.message);
-      throw authError; // Re-throw para ser pego na página de login
+      throw authError; 
+    }
+  };
+
+  const register = async (email: string, password: string): Promise<User | null> => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // O onAuthStateChanged cuidará de setar o user globalmente.
+      // setUser(userCredential.user); // Não é estritamente necessário aqui devido ao listener
+      return userCredential.user;
+    } catch (error) {
+      const authError = error as AuthError;
+      console.error("Registration error:", authError.code, authError.message);
+      throw authError; // Re-throw para ser pego na página de registro
     }
   };
 
@@ -74,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     login,
     logout,
+    register, // Adicionado
   };
 
   return (
