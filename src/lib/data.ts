@@ -104,13 +104,13 @@ export async function deletePartOrService(id: string): Promise<boolean> {
 // User related functions
 export async function addUserToFirestore(uid: string, email: string, displayName: string): Promise<void> {
   const userRef = doc(usersCollection, uid);
-  const userData: Omit<UserProfile, 'uid' | 'createdAt'> & { createdAt: any } = { // Omit uid because it's the doc ID
+  const userData: Omit<UserProfile, 'uid' | 'createdAt'> & { createdAt: any } = { 
     email: email,
     displayName: displayName,
-    // photoURL: firebaseUser.photoURL, // Can be added if available from Auth
+    // photoURL will be added/updated via profile edit
     createdAt: serverTimestamp(),
   };
-  await setDoc(userRef, userData); // Use setDoc to create or overwrite user data with specific UID
+  await setDoc(userRef, userData); 
 }
 
 export async function getUserFromFirestore(uid: string): Promise<UserProfile | null> {
@@ -128,6 +128,27 @@ export async function getUserFromFirestore(uid: string): Promise<UserProfile | n
     } as UserProfile;
   }
   return null;
+}
+
+export async function updateUserProfileInFirestore(uid: string, data: { displayName?: string; photoURL?: string }): Promise<void> {
+  if (!uid) throw new Error("UID do usuário é obrigatório para atualizar o perfil.");
+  const userRef = doc(usersCollection, uid);
+  
+  const updateData: any = {};
+  if (data.displayName !== undefined) {
+    updateData.displayName = data.displayName;
+  }
+  if (data.photoURL !== undefined) { // Allow setting photoURL to empty string to remove it
+    updateData.photoURL = data.photoURL;
+  }
+  
+  if (Object.keys(updateData).length === 0) {
+    // No actual data to update, maybe just return or throw a specific error
+    return; 
+  }
+
+  updateData.updatedAt = serverTimestamp(); // Track updates
+  await updateDoc(userRef, updateData);
 }
 
 

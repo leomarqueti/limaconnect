@@ -19,7 +19,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  photoURL?: string; // Optional, could be from Firebase Auth or custom
+  photoURL?: string; // Optional, could be from Firebase Auth or custom (Data URI or external URL)
   // role?: 'mechanic' | 'office' | 'admin'; // For future role-based access
   createdAt: Date; // Will store as Firestore Timestamp, convert to Date on read
 }
@@ -90,8 +90,14 @@ export const checkinFormSchema = z.object({
   vehicleLicensePlate: z.string().min(7, "Placa do veículo é obrigatória.").max(8, "Placa inválida."),
   vehicleVIN: z.string().length(17, "Chassi (VIN) deve ter 17 caracteres.").optional().or(z.literal('')),
   serviceRequestDetails: z.string().min(5, "Descreva o serviço solicitado ou problema.").max(500),
-  // Checklist items will be handled separately in the form state, not directly in Zod schema for simplicity now
-  // photoDataUris will also be handled in form state
 });
 
 export type CheckinFormData = z.infer<typeof checkinFormSchema>;
+
+// Schema for Profile Editing
+export const profileEditSchema = z.object({
+  displayName: z.string().min(3, "O nome de exibição deve ter pelo menos 3 caracteres.").max(50, "O nome de exibição deve ter no máximo 50 caracteres."),
+  photoURL: z.string().optional().or(z.literal('')), // Can be Data URI or empty
+});
+
+export type ProfileEditFormData = z.infer<typeof profileEditSchema>;

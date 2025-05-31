@@ -6,15 +6,25 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { PackageSearch, LayoutDashboard, LogOut, UserCircle } from 'lucide-react'; 
+import { PackageSearch, LayoutDashboard, LogOut, UserCircle, Settings } from 'lucide-react'; 
 import { useAuth } from '@/contexts/AuthContext'; 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 
 export function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, loading } = useAuth(); 
   const isDesktopView = pathname.startsWith('/desktop');
-  const isLoginPage = pathname === '/login' || pathname === '/register'; // Include register page
+  const isLoginPage = pathname === '/login' || pathname === '/register';
 
   const handleLogout = async () => {
     await logout();
@@ -68,16 +78,46 @@ export function AppHeader() {
           )}
 
           {user ? (
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground hidden sm:inline items-center">
-                <UserCircle className="inline mr-1 h-4 w-4" />
-                {user.profile?.displayName || user.email}
-              </span>
-              <Button variant="outline" size="sm" onClick={handleLogout} disabled={loading}>
-                <LogOut className="mr-0 sm:mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Sair</span>
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage 
+                        src={user.profile?.photoURL || undefined} 
+                        alt={user.profile?.displayName || user.email || "User Avatar"} 
+                        data-ai-hint={user.profile?.photoURL ? "user profile" : "avatar placeholder"}
+                    />
+                    <AvatarFallback>
+                      {(user.profile?.displayName || user.email || 'U').substring(0,2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {user.profile?.displayName || 'Usuário'}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/profile/edit">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Editar Perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} disabled={loading}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             !isLoginPage && !loading && ( 
               <Button variant="outline" size="sm" asChild>

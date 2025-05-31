@@ -14,7 +14,7 @@ import {
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { UserProfile } from '@/types'; // Import UserProfile
-import { addUserToFirestore, getUserFromFirestore } from '@/lib/data'; // Import Firestore functions
+import { addUserToFirestore, getUserFromFirestore, updateUserProfileInFirestore } from '@/lib/data'; // Import Firestore functions
 
 // Combine FirebaseUser with UserProfile
 export interface AppUser extends FirebaseUser {
@@ -27,6 +27,7 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<AppUser | null>;
   logout: () => Promise<void>;
   register: (email: string, pass: string) => Promise<AppUser | null>;
+  updateUserProfile: (newData: { displayName?: string; photoURL?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true); // Set loading true while fetching profile
+      setLoading(true); 
       if (firebaseUser) {
         const userProfile = await getUserFromFirestore(firebaseUser.uid);
         setUser({ ...firebaseUser, profile: userProfile });
@@ -56,10 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
-      const userProfile = await getUserFromFirestore(firebaseUser.uid);
-      const appUser = { ...firebaseUser, profile: userProfile };
-      setUser(appUser); // onAuthStateChanged will also trigger, this provides immediate update
-      return appUser;
+      // onAuthStateChanged will fetch and set profile, but we can pre-emptively fetch for quicker UI update if desired.
+      // For consistency, we'll rely on onAuthStateChanged to set the full AppUser.
+      // const userProfile = await getUserFromFirestore(firebaseUser.uid);
+      // const appUser = { ...firebaseUser, profile: userProfile };
+      // setUser(appUser); 
+      return firebaseUser as AppUser; // Cast, as profile will be populated by onAuthStateChanged
     } catch (error) {
       const authError = error as AuthError;
       console.error("Login error:", authError.message);
@@ -72,16 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
       
-      // Create a simple display name from email (part before @)
       const displayName = email.split('@')[0] || 'Novo Usuário';
       await addUserToFirestore(firebaseUser.uid, firebaseUser.email!, displayName);
       
-      // Fetch the newly created profile
-      const userProfile = await getUserFromFirestore(firebaseUser.uid);
-      const appUser = { ...firebaseUser, profile: userProfile };
-      // onAuthStateChanged will also handle setting the user, but this ensures profile is available sooner
-      setUser(appUser);
-      return appUser;
+      // onAuthStateChanged will fetch and set profile.
+      // const userProfile = await getUserFromFirestore(firebaseUser.uid);
+      // const appUser = { ...firebaseUser, profile: userProfile };
+      // setUser(appUser);
+      return firebaseUser as AppUser; // Cast, profile via onAuthStateChanged
     } catch (error) {
       const authError = error as AuthError;
       console.error("Registration error:", authError.code, authError.message);
@@ -92,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await signOut(auth);
-      setUser(null); // onAuthStateChanged will also set user to null
+      setUser(null); 
       router.push('/login');
     } catch (error) {
       console.error("Logout error:", error);
@@ -104,12 +105,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (newData: { displayName?: string; photoURL?: string }) => {
+    if (!user) {
+      throw new Error("Usuário não autenticado.");
+    }
+    try {
+      await updateUserProfileInFirestore(user.uid, newData);
+      // Fetch the updated profile to refresh the context
+      const updatedProfile = await getUserFromFirestore(user.uid);
+      setUser(prevUser => prevUser ? { ...prevUser, profile: updatedProfile } : null);
+      toast({ title: "Perfil Atualizado", description: "Suas informações foram salvas." });
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      toast({ variant: "destructive", title: "Erro ao Atualizar", description: "Não foi possível salvar as alterações." });
+      throw error; // Re-throw for the form to handle
+    }
+  };
+
   const value = {
     user,
     loading,
     login,
     logout,
     register,
+    updateUserProfile,
   };
 
   return (
