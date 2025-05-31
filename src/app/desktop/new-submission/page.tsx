@@ -10,30 +10,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { getPartsAndServices } from '@/lib/data';
-import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType } from '@/types';
+import { getPartsAndServices, getMechanicById } from '@/lib/data'; // Added getMechanicById
+import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType, Mechanic } from '@/types';
 import { PartServiceCard } from '@/components/shared/PartServiceCard';
-import { Search, Plus, Minus, XCircle, Loader2, Lightbulb } from 'lucide-react';
+import { Search, Plus, Minus, XCircle, ArrowLeft, Loader2, Lightbulb } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { submitJobAction, getAiSuggestionsAction } from '@/lib/actions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from '@/components/ui/separator';
+import Link from 'next/link';
 
-export default function NewSubmissionPage() {
+export default function DesktopNewSubmissionPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
 
   const submissionType = searchParams.get('type') as SubmissionType | null;
-  const mechanicId = searchParams.get('mechanicId');
+  const mechanicId = searchParams.get('mechanicId'); // This will be 'office_user' or similar
 
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [isFetchingSuggestions, startFetchingSuggestionsTransition] = useTransition();
-
+  
   const [allPartsAndServices, setAllPartsAndServices] = useState<PartOrService[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItemsMap, setSelectedItemsMap] = useState<Map<string, SelectedItemType>>(new Map());
   const [aiSuggestions, setAiSuggestions] = useState<PartOrService[]>([]);
+  const [mechanicInfo, setMechanicInfo] = useState<Mechanic | null | undefined>(null);
+
 
   const [customerName, setCustomerName] = useState('');
   const [vehicleInfo, setVehicleInfo] = useState('');
@@ -44,28 +47,28 @@ export default function NewSubmissionPage() {
       toast({
         variant: "destructive",
         title: "Erro de Parâmetro",
-        description: "Tipo de submissão ou ID do mecânico ausente. Redirecionando...",
+        description: "Tipo de submissão ou ID do usuário do escritório ausente. Redirecionando...",
       });
-      router.replace('/mobile');
+      router.replace('/desktop');
       return;
     }
     setAllPartsAndServices(getPartsAndServices());
+    setMechanicInfo(getMechanicById(mechanicId)); // Fetch mechanic info (e.g., 'Escritório')
   }, [submissionType, mechanicId, router, toast]);
 
   const selectedItemsArray = useMemo(() => Array.from(selectedItemsMap.values()), [selectedItemsMap]);
 
-  useEffect(() => {
+   useEffect(() => {
     if (selectedItemsArray.length > 0) {
       startFetchingSuggestionsTransition(async () => {
         const currentSelectionNames = selectedItemsArray.map(si => si.item.name);
         const suggestions = await getAiSuggestionsAction(currentSelectionNames);
-        setAiSuggestions(suggestions.filter(sugg => !selectedItemsMap.has(sugg.id))); // Filter out already selected
+        setAiSuggestions(suggestions.filter(sugg => !selectedItemsMap.has(sugg.id)));
       });
     } else {
       setAiSuggestions([]);
     }
   }, [selectedItemsMap, selectedItemsArray]);
-
 
   const filteredPartsAndServices = useMemo(() => {
     if (!searchTerm) return allPartsAndServices;
@@ -78,17 +81,15 @@ export default function NewSubmissionPage() {
     setSelectedItemsMap(prevMap => {
       const newMap = new Map(prevMap);
       if (newMap.has(item.id)) {
-        // If already selected, deselect by removing it (quantity adjustment will also remove if <=0)
-        // newMap.delete(item.id);
+        // newMap.delete(item.id); // Keep it simple, quantity change will handle removal
       } else {
         newMap.set(item.id, { item, quantity: 1 });
       }
-      // If an AI suggestion is clicked and it was selected, ensure it's removed from suggestions
       setAiSuggestions(prevSuggestions => prevSuggestions.filter(sugg => sugg.id !== item.id));
       return newMap;
     });
   };
-
+  
   const handleRemoveItem = (itemId: string) => {
     setSelectedItemsMap(prevMap => {
       const newMap = new Map(prevMap);
@@ -113,12 +114,15 @@ export default function NewSubmissionPage() {
     });
   };
 
+  const totalPrice = useMemo(() => {
+    return selectedItemsArray.reduce((total, { item, quantity }) => total + item.price * quantity, 0);
+  }, [selectedItemsArray]);
+
   const handleSubmit = () => {
-    if (!mechanicId || !submissionType) {
-      toast({ variant: "destructive", title: "Erro", description: "ID do mecânico ou tipo de submissão inválido." });
+     if (!mechanicId || !submissionType) {
+      toast({ variant: "destructive", title: "Erro", description: "ID do usuário ou tipo de submissão inválido." });
       return;
     }
-
     startSubmitTransition(async () => {
       const selectedItemsData = selectedItemsArray.map(
         (selectedItem) => ({
@@ -156,9 +160,9 @@ export default function NewSubmissionPage() {
       if (actionResult.success) {
         toast({
           title: "Sucesso!",
-          description: `Registro de ${submissionType === 'quote' ? 'orçamento' : 'serviço'} enviado.`,
+          description: `Registro de ${submissionType === 'quote' ? 'orçamento' : 'serviço'} enviado pelo escritório.`,
         });
-        router.push('/mobile');
+        router.push('/desktop');
       } else {
          toast({
             variant: "destructive",
@@ -171,26 +175,37 @@ export default function NewSubmissionPage() {
 
   if (!submissionType || !mechanicId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Erro</CardTitle>
-              <CardDescription>Parâmetros inválidos. Redirecionando...</CardDescription>
+              <CardTitle>Erro de Parâmetro</CardTitle>
+              <CardDescription>Informações inválidas. Verifique e tente novamente ou volte ao painel.</CardDescription>
             </CardHeader>
+             <CardFooter>
+                <Button variant="outline" asChild>
+                    <Link href="/desktop"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel</Link>
+                </Button>
+            </CardFooter>
           </Card>
       </div>
     );
   }
   
   return (
-    <div className="container mx-auto p-4">
-      <Card className="w-full max-w-2xl mx-auto shadow-xl">
+    <div className="max-w-3xl mx-auto">
+      <Button variant="outline" asChild className="mb-6 group">
+        <Link href="/desktop">
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+          Voltar ao Painel
+        </Link>
+      </Button>
+      <Card className="w-full shadow-xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold font-headline">
-            {submissionType === 'quote' ? 'Montar Orçamento' : 'Registrar Serviço Finalizado'}
+            {submissionType === 'quote' ? 'Novo Orçamento (Escritório)' : 'Novo Serviço Finalizado (Escritório)'}
           </CardTitle>
           <CardDescription>
-            Mecânico: {mechanicId} | Preencha os detalhes abaixo.
+            Registrando como: {mechanicInfo?.name || mechanicId} | Preencha os detalhes abaixo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -224,7 +239,7 @@ export default function NewSubmissionPage() {
                       item={item}
                       onSelect={() => handleSelectItem(item)}
                       isSelected={selectedItemsMap.has(item.id)}
-                      showPrice={false} // Preços ocultos para mecânicos
+                      showPrice={true} // Preços visíveis para o escritório
                     />
                   ))}
                 </div>
@@ -241,15 +256,15 @@ export default function NewSubmissionPage() {
                 Sugestões para você
                 {isFetchingSuggestions && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
               </h3>
-              <ScrollArea className="h-[130px] -mx-2 px-2">
+              <ScrollArea className="h-[150px] -mx-2 px-2">
                 <div className="flex space-x-3 pb-2">
                   {aiSuggestions.map(item => (
-                     <div key={item.id} className="w-32 flex-shrink-0 sm:w-36">
+                     <div key={item.id} className="w-36 flex-shrink-0 sm:w-40">
                         <PartServiceCard
                           item={item}
                           onSelect={() => handleSelectItem(item)}
                           isSelected={selectedItemsMap.has(item.id)}
-                          showPrice={false}
+                          showPrice={true}
                         />
                       </div>
                   ))}
@@ -259,7 +274,6 @@ export default function NewSubmissionPage() {
             </div>
           )}
 
-
           {selectedItemsArray.length > 0 && (
             <Card className="bg-background shadow-inner">
               <CardHeader className="pb-3 pt-4">
@@ -267,10 +281,10 @@ export default function NewSubmissionPage() {
               </CardHeader>
               <CardContent className="space-y-3 max-h-[200px] overflow-y-auto">
                 {selectedItemsArray.map(({ item, quantity }) => (
-                  <div key={item.id} className="flex items-center justify-between space-x-2 p-2 border rounded-lg shadow-sm bg-card">
+                  <div key={item.id} className="flex items-center justify-between space-x-2 p-3 border rounded-lg shadow-sm bg-card">
                     <div className="flex-grow">
                       <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{item.type === 'part' ? 'Peça' : 'Serviço'}</p>
+                      <p className="text-xs text-muted-foreground">R$ {item.price.toFixed(2)} cada</p>
                     </div>
                     <div className="flex items-center space-x-1 sm:space-x-2">
                       <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => handleQuantityChange(item.id, -1)} aria-label={`Diminuir quantidade de ${item.name}`}>
@@ -281,11 +295,17 @@ export default function NewSubmissionPage() {
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9" onClick={() => handleRemoveItem(item.id)} aria-label={`Remover ${item.name}`}>
+                    <p className="font-semibold w-20 text-right text-sm">R$ {(item.price * quantity).toFixed(2)}</p>
+                     <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9" onClick={() => handleRemoveItem(item.id)} aria-label={`Remover ${item.name}`}>
                        <XCircle className="h-5 w-5" />
                     </Button>
                   </div>
                 ))}
+                <Separator className="my-4" />
+                <div className="flex justify-between items-center font-bold text-lg">
+                  <span>Total:</span>
+                  <span>R$ {totalPrice.toFixed(2)}</span>
+                </div>
               </CardContent>
             </Card>
           )}

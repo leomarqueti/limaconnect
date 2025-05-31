@@ -3,7 +3,8 @@ import Image from 'next/image';
 import type { PartOrService } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, CheckCircle } from 'lucide-react';
+import { PlusCircle, CheckCircle, Package, Wrench } from 'lucide-react'; // Added Package and Wrench
+import { Badge } from '@/components/ui/badge'; // Added Badge
 
 interface PartServiceCardProps {
   item: PartOrService;
@@ -12,9 +13,9 @@ interface PartServiceCardProps {
   showPrice?: boolean;
 }
 
-export function PartServiceCard({ item, onSelect, isSelected, showPrice = false }: PartServiceCardProps) {
+export function PartServiceCard({ item, onSelect, isSelected, showPrice = true }: PartServiceCardProps) {
   return (
-    <Card className={`overflow-hidden transition-all duration-200 ease-in-out hover:shadow-xl ${isSelected ? 'ring-2 ring-primary shadow-lg' : 'shadow-md'}`}>
+    <Card className={`overflow-hidden transition-all duration-200 ease-in-out hover:shadow-xl flex flex-col h-full ${isSelected ? 'ring-2 ring-primary shadow-lg' : 'shadow-md'}`}>
       <CardHeader className="p-0">
         <div className="aspect-square relative w-full">
           <Image
@@ -23,16 +24,21 @@ export function PartServiceCard({ item, onSelect, isSelected, showPrice = false 
             fill
             className="object-cover"
             data-ai-hint={item.aiHint}
-            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" // Example sizes, adjust as needed
+            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
           />
         </div>
       </CardHeader>
-      <CardContent className="p-4">
-        <CardTitle className="text-md font-headline mb-1 truncate" title={item.name}>{item.name}</CardTitle>
-        {showPrice && <p className="text-sm font-semibold text-primary">R$ {item.price.toFixed(2)}</p>}
-        <p className="text-xs text-muted-foreground capitalize">{item.type === 'part' ? 'Peça' : 'Serviço'}</p>
+      <CardContent className="p-3 flex-grow">
+        <CardTitle className="text-sm font-semibold mb-1 leading-tight" title={item.name}>
+          {item.name.length > 35 ? item.name.substring(0, 32) + '...' : item.name}
+        </CardTitle>
+        {showPrice && <p className="text-xs font-bold text-primary mb-1">R$ {item.price.toFixed(2)}</p>}
+        <Badge variant={item.type === 'part' ? "secondary" : "outline"} className="text-xs">
+          {item.type === 'part' ? <Package className="h-3 w-3 mr-1" /> : <Wrench className="h-3 w-3 mr-1" />}
+          {item.type === 'part' ? 'Peça' : 'Serviço'}
+        </Badge>
       </CardContent>
-      <CardFooter className="p-4 pt-0">
+      <CardFooter className="p-3 pt-0 mt-auto">
         <Button
           variant={isSelected ? "secondary" : "default"}
           size="sm"
@@ -47,3 +53,5 @@ export function PartServiceCard({ item, onSelect, isSelected, showPrice = false 
     </Card>
   );
 }
+
+    

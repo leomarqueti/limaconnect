@@ -2,7 +2,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+// import { redirect } from "next/navigation"; // No longer redirecting from server action
 import { addSubmission, getPartsAndServices, markSubmissionAsViewed as markSubmissionViewedDb } from "@/lib/data";
 import type { PartOrService, SelectedItem, SubmissionType } from "@/types";
 import { suggestRelatedParts as genAiSuggestRelatedParts } from "@/ai/flows/suggest-related-parts";
@@ -17,7 +17,13 @@ export interface SubmitJobArgs {
   notes?: string;
 }
 
-export async function submitJobAction(args: SubmitJobArgs) {
+export interface SubmitJobResult {
+  success: boolean;
+  message?: string;
+  submissionId?: string;
+}
+
+export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitJobResult> {
   const allPartsAndServices = getPartsAndServices();
   const selectedItems: SelectedItem[] = args.selectedItemsData
     .map(data => {
@@ -35,7 +41,7 @@ export async function submitJobAction(args: SubmitJobArgs) {
   }
 
   try {
-    addSubmission(
+    const newSubmission = addSubmission(
       args.mechanicId, 
       args.submissionType, 
       selectedItems,
@@ -43,19 +49,16 @@ export async function submitJobAction(args: SubmitJobArgs) {
       args.vehicleInfo,
       args.notes
     );
-    // Revalidate paths for both desktop and mobile where data might be displayed or affected
-    revalidatePath("/desktop"); 
-    revalidatePath("/desktop/job", "layout"); // Revalidate job detail pages
-    revalidatePath("/mobile/new-submission"); 
-    revalidatePath("/mobile");
+    
+    revalidatePath("/desktop", "layout"); // Revalidate all desktop pages
+    revalidatePath("/mobile", "layout"); // Revalidate all mobile pages
+    
+    return { success: true, submissionId: newSubmission.id, message: "Registro enviado com sucesso!" };
+
   } catch (error) {
     console.error("Failed to submit job:", error);
     return { success: false, message: "Falha ao enviar o registro. Tente novamente." };
   }
-  
-  // Redirect only applies to client-side transitions, typically after form submissions in Server Actions
-  // For mobile, we want to redirect back to the mobile home page.
-  redirect("/mobile"); 
 }
 
 export async function getAiSuggestionsAction(
@@ -74,9 +77,8 @@ export async function getAiSuggestionsAction(
     const allPartsAndServices = getPartsAndServices();
     
     const suggestions = output.suggestedPartsAndServices
-      .filter(name => !currentSelectionNames.includes(name)) // Exclude already selected items
       .map(name => allPartsAndServices.find(ps => ps.name === name))
-      .filter(item => item !== undefined) as PartOrService[];
+      .filter(item => item !== undefined && !currentSelectionNames.includes(item.name)) as PartOrService[]; // Also filter out already selected items based on name from output
       
     return suggestions.slice(0, 5); // Limit to 5 suggestions
   } catch (error) {
@@ -88,10 +90,12 @@ export async function getAiSuggestionsAction(
 export async function markSubmissionAsViewedAction(submissionId: string) {
   try {
     markSubmissionViewedDb(submissionId);
-    revalidatePath("/desktop"); // Revalidate the dashboard
-    revalidatePath(`/desktop/job/${submissionId}`); // Revalidate the specific job page
+    revalidatePath("/desktop"); 
+    revalidatePath(`/desktop/job/${submissionId}`); 
   } catch (error) {
     console.error("Failed to mark submission as viewed:", error);
     // Optionally, throw the error or return an error object if the client needs to handle it
   }
 }
+
+    

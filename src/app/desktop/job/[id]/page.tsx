@@ -13,12 +13,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, User, Wrench, Clock, Tag, MessageSquare, FileText, CheckCircle, ShoppingCart, Package } from 'lucide-react';
+import { ArrowLeft, User, Wrench, Clock, Tag, MessageSquare, FileText, CheckCircle, ShoppingCart, Package, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Skeleton } from '@/components/ui/skeleton'; // For loading state
+import { Skeleton } from '@/components/ui/skeleton'; 
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge'; // Added import for Badge
+import { Badge } from '@/components/ui/badge';
 
 export default function SubmissionDetailPage() {
   const params = useParams();
@@ -26,7 +26,7 @@ export default function SubmissionDetailPage() {
   const { toast } = useToast();
   const id = params.id as string;
 
-  const [submission, setSubmission] = useState<Submission | null | undefined>(undefined); // undefined for loading, null for not found
+  const [submission, setSubmission] = useState<Submission | null | undefined>(undefined); 
   const [mechanic, setMechanic] = useState<Mechanic | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,11 +41,9 @@ export default function SubmissionDetailPage() {
             setMechanic(getMechanicById(sub.mechanicId));
             if (sub.status === 'pending') {
               await markSubmissionAsViewedAction(id);
-              // Optionally, refetch or update local state to reflect 'viewed' status immediately
-              // For simplicity, we rely on revalidation or next navigation to show updated status on dashboard
             }
           } else {
-            setSubmission(null); // Not found
+            setSubmission(null); 
             toast({
               variant: "destructive",
               title: "Submissão não encontrada",
@@ -69,13 +67,20 @@ export default function SubmissionDetailPage() {
     }
   }, [id, router, toast]);
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto">
-        <Skeleton className="h-12 w-1/4 mb-4" />
+        <Skeleton className="h-10 w-36 mb-6" />
         <Card>
           <CardHeader>
-            <Skeleton className="h-8 w-3/4 mb-2" />
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-8 w-3/4 mb-2" />
+              <Skeleton className="h-8 w-24" />
+            </div>
             <Skeleton className="h-4 w-1/2" />
           </CardHeader>
           <CardContent className="space-y-4">
@@ -86,7 +91,7 @@ export default function SubmissionDetailPage() {
             <Skeleton className="h-40 w-full" />
           </CardContent>
           <CardFooter>
-            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-32" />
           </CardFooter>
         </Card>
       </div>
@@ -94,9 +99,8 @@ export default function SubmissionDetailPage() {
   }
 
   if (!submission) {
-    // Message for not found is handled by redirect/toast, but good to have a fallback UI
     return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
             <Card className="w-full max-w-md p-8 text-center">
                 <CardTitle className="text-2xl mb-4">Submissão Não Encontrada</CardTitle>
                 <CardDescription className="mb-6">
@@ -110,25 +114,31 @@ export default function SubmissionDetailPage() {
     );
   }
 
-  const mechanicName = mechanic?.name || 'Desconhecido';
+  const mechanicName = mechanic?.name || `Usuário ID: ${submission.mechanicId}`;
   const TypeIcon = submission.type === 'quote' ? FileText : CheckCircle;
   const typeText = submission.type === 'quote' ? 'Orçamento Detalhado' : 'Serviço Finalizado Detalhado';
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Button variant="outline" asChild className="mb-6 group">
-        <Link href="/desktop">
-          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-          Voltar ao Painel
-        </Link>
-      </Button>
+    <div className="max-w-4xl mx-auto print:max-w-full print:mx-0">
+      <div className="flex justify-between items-center mb-6 print:hidden">
+        <Button variant="outline" asChild className="group">
+          <Link href="/desktop">
+            <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+            Voltar ao Painel
+          </Link>
+        </Button>
+        <Button variant="default" onClick={handlePrint}>
+          <Printer className="h-4 w-4 mr-2" />
+          Imprimir / Salvar PDF
+        </Button>
+      </div>
 
-      <Card className="overflow-hidden shadow-lg">
-        <CardHeader className="bg-card-foreground/5 p-6">
+      <Card className="overflow-hidden shadow-lg print:shadow-none print:border-0">
+        <CardHeader className="bg-card-foreground/5 p-6 print:bg-transparent">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="flex items-center space-x-3">
                     {mechanic && (
-                        <Avatar className="h-12 w-12 border-2 border-primary">
+                        <Avatar className="h-12 w-12 border-2 border-primary print:hidden">
                         <AvatarImage src={mechanic.photoUrl} alt={mechanicName} data-ai-hint={mechanic.aiHint} />
                         <AvatarFallback>{mechanicName.substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
@@ -136,7 +146,7 @@ export default function SubmissionDetailPage() {
                     <div>
                         <CardTitle className="text-2xl font-bold text-foreground">{typeText}</CardTitle>
                         <CardDescription className="text-sm">
-                        Enviado por: <span className="font-medium">{mechanicName}</span> (ID: {submission.mechanicId})
+                        Enviado por: <span className="font-medium">{mechanicName}</span>
                         </CardDescription>
                     </div>
                 </div>
@@ -194,11 +204,11 @@ export default function SubmissionDetailPage() {
           <div>
             <h3 className="text-md font-semibold mb-3 flex items-center"><ShoppingCart className="h-5 w-5 mr-2 text-primary" /> Itens Registrados</h3>
             {submission.items.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-hidden print:border-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[60px] hidden sm:table-cell"></TableHead>
+                      <TableHead className="w-[60px] hidden sm:table-cell print:hidden"></TableHead>
                       <TableHead>Item</TableHead>
                       <TableHead className="text-center">Qtd.</TableHead>
                       <TableHead className="text-right">Preço Unit.</TableHead>
@@ -208,15 +218,15 @@ export default function SubmissionDetailPage() {
                   <TableBody>
                     {submission.items.map(({ item, quantity }) => (
                       <TableRow key={item.id}>
-                        <TableCell className="hidden sm:table-cell p-2">
+                        <TableCell className="hidden sm:table-cell p-2 print:hidden">
                            <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted">
                             <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} />
                            </div>
                         </TableCell>
                         <TableCell>
                           <p className="font-medium">{item.name}</p>
-                          <Badge variant={item.type === 'part' ? 'secondary' : 'outline'} className="mt-1 text-xs">
-                            {item.type === 'part' ? <Package className="h-3 w-3 mr-1" /> : <Wrench className="h-3 w-3 mr-1" />}
+                          <Badge variant={item.type === 'part' ? 'secondary' : 'outline'} className="mt-1 text-xs print:border-none print:px-0 print:py-0 print:bg-transparent print:text-muted-foreground">
+                            {item.type === 'part' ? <Package className="h-3 w-3 mr-1 print:hidden" /> : <Wrench className="h-3 w-3 mr-1 print:hidden" />}
                             {item.type === 'part' ? 'Peça' : 'Serviço'}
                           </Badge>
                         </TableCell>
@@ -233,10 +243,42 @@ export default function SubmissionDetailPage() {
             )}
           </div>
         </CardContent>
-        <CardFooter className="bg-card-foreground/5 p-6 flex justify-end">
+        <CardFooter className="bg-card-foreground/5 p-6 flex justify-end print:bg-transparent print:justify-between">
+            <p className="text-xs text-muted-foreground print:block hidden">AutoService Link - {submission.type === 'quote' ? 'Orçamento' : 'Serviço'} #{submission.id.substring(0,8)}</p>
             <p className="text-lg font-bold">Total Geral: <span className="text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span></p>
         </CardFooter>
       </Card>
+
+      <style jsx global>{`
+        @media print {
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .print\\:hidden { display: none !important; }
+          .print\\:block { display: block !important; }
+          .print\\:max-w-full { max-width: 100% !important; }
+          .print\\:mx-0 { margin-left: 0 !important; margin-right: 0 !important; }
+          .print\\:shadow-none { box-shadow: none !important; }
+          .print\\:border-0 { border: 0 !important; }
+          .print\\:bg-transparent { background-color: transparent !important; }
+          .print\\:p-0 { padding: 0 !important; }
+          .print\\:text-muted-foreground { color: hsl(var(--muted-foreground)) !important; }
+          .print\\:border-none { border: none !important; }
+          .print\\:px-0 { padding-left: 0 !important; padding-right: 0 !important; }
+          .print\\:py-0 { padding-top: 0 !important; padding-bottom: 0 !important; }
+          .print\\:justify-between { justify-content: space-between !important; }
+          .print\\:text-black { color: black !important; }
+
+          /* Ensure table borders are visible for printing */
+           .print\\:table-border table, .print\\:table-border th, .print\\:table-border td {
+            border: 1px solid #ccc !important;
+          }
+          .print\\:table-border th {
+            background-color: #f0f0f0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

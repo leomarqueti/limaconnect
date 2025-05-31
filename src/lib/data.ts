@@ -1,30 +1,35 @@
 
 import type { PartOrService, Mechanic, Submission, SubmissionType, SelectedItem } from '@/types';
 
+// Adicionando um mecânico/usuário para o escritório
 export const mechanics: Mechanic[] = [
   { id: 'mech1', name: 'Carlos Silva', photoUrl: 'https://placehold.co/40x40.png?text=CS', aiHint: 'man portrait' },
   { id: 'mech2', name: 'João Ferreira', photoUrl: 'https://placehold.co/40x40.png?text=JF', aiHint: 'person face' },
+  { id: 'office_user', name: 'Escritório AutoService', photoUrl: 'https://placehold.co/40x40.png?text=AS', aiHint: 'office building' },
 ];
 
 export const partsAndServices: PartOrService[] = [
-  { id: 'ps1', name: 'Fita Isolante', price: 5.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'insulating tape', type: 'part' },
-  { id: 'ps2', name: 'Lâmpada H4 (Farol)', price: 25.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'car light', type: 'part' },
-  { id: 'ps3', name: 'Óleo Motor 10W40 1L', price: 45.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'oil bottle', type: 'part' },
-  { id: 'ps4', name: 'Filtro de Óleo', price: 30.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'oil filter', type: 'part' },
-  { id: 'ps5', name: 'Pastilha de Freio (par)', price: 120.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'brake pad', type: 'part' },
-  { id: 'ps6', name: 'Troca de Lâmpada', price: 20.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'mechanic service', type: 'service' },
-  { id: 'ps7', name: 'Troca de Óleo e Filtro', price: 80.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'oil change', type: 'service' },
-  { id: 'ps8', name: 'Alinhamento e Balanceamento', price: 150.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'tire wheel', type: 'service' },
-  { id: 'ps9', name: 'Diagnóstico Eletrônico', price: 100.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'car diagnostic', type: 'service' },
-  { id: 'ps10', name: 'Vela de Ignição', price: 15.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'spark plug', type: 'part' },
-  { id: 'ps11', name: 'Bateria 60Ah', price: 350.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'car battery', type: 'part' },
-  { id: 'ps12', name: 'Limpeza de Bicos Injetores', price: 180.00, imageUrl: 'https://placehold.co/100x100.png', aiHint: 'engine cleaning', type: 'service' },
+  { id: 'ps1', name: 'Fita Isolante Rolo 5m', price: 5.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'insulating tape', type: 'part' },
+  { id: 'ps2', name: 'Lâmpada H4 55/60W (Farol)', price: 25.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'car light', type: 'part' },
+  { id: 'ps3', name: 'Óleo Motor Semissintético 10W40 API SN 1L', price: 45.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'oil bottle', type: 'part' },
+  { id: 'ps4', name: 'Filtro de Óleo Motor (compatível Gol/Palio)', price: 30.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'oil filter', type: 'part' },
+  { id: 'ps5', name: 'Pastilha de Freio Dianteira (par)', price: 120.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'brake pad', type: 'part' },
+  { id: 'ps6', name: 'Serviço: Troca de Lâmpada (unidade)', price: 20.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'mechanic service', type: 'service' },
+  { id: 'ps7', name: 'Serviço: Troca de Óleo e Filtro de Óleo', price: 80.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'oil change', type: 'service' },
+  { id: 'ps8', name: 'Serviço: Alinhamento de Direção e Balanceamento de Rodas (4 rodas)', price: 150.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'tire wheel', type: 'service' },
+  { id: 'ps9', name: 'Serviço: Diagnóstico Eletrônico com Scanner', price: 100.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'car diagnostic', type: 'service' },
+  { id: 'ps10', name: 'Vela de Ignição (unidade)', price: 15.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'spark plug', type: 'part' },
+  { id: 'ps11', name: 'Bateria Automotiva 60Ah (selada)', price: 350.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'car battery', type: 'part' },
+  { id: 'ps12', name: 'Serviço: Limpeza de Bicos Injetores (por bico)', price: 45.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'engine cleaning', type: 'service' },
+  { id: 'ps13', name: 'Fluido de Freio DOT 4 500ml', price: 35.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'brake fluid', type: 'part' },
+  { id: 'ps14', name: 'Serviço: Sangria e Troca de Fluido de Freio', price: 90.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'brake service', type: 'service' },
+  { id: 'ps15', name: 'Amortecedor Dianteiro (unidade)', price: 280.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'shock absorber', type: 'part' },
 ];
 
 // In-memory store for submissions
 let _submissions: Submission[] = [
   {
-    id: 'sub1',
+    id: 'sub1_demo',
     mechanicId: 'mech1',
     type: 'quote',
     items: [
@@ -36,10 +41,10 @@ let _submissions: Submission[] = [
     totalPrice: (25*2) + 20,
     customerName: 'Maria Oliveira',
     vehicleInfo: 'Fiat Palio 2010 Placa XYZ-7890',
-    notes: 'Verificar barulho na suspensão dianteira também.'
+    notes: 'Verificar barulho na suspensão dianteira também. Cliente relatou estalos ao virar o volante para a direita em baixa velocidade.'
   },
   {
-    id: 'sub2',
+    id: 'sub2_demo',
     mechanicId: 'mech2',
     type: 'finished',
     items: [
@@ -52,7 +57,23 @@ let _submissions: Submission[] = [
     totalPrice: (45*4) + 30 + 80,
     customerName: 'José Pereira',
     vehicleInfo: 'Ford Ka 2018 Placa JKL-4567',
-    notes: 'Cliente solicitou urgência.'
+    notes: 'Cliente solicitou urgência. Veículo será retirado no final da tarde.'
+  },
+   {
+    id: 'sub3_demo_office',
+    mechanicId: 'office_user',
+    type: 'quote',
+    items: [
+      { item: partsAndServices.find(p=>p.id==='ps5')!, quantity: 2 }, // Pastilha de Freio (par) x2 = 4 pastilhas
+      { item: partsAndServices.find(p=>p.id==='ps13')!, quantity: 1 }, // Fluido de Freio
+      { item: partsAndServices.find(p=>p.id==='ps14')!, quantity: 1 }, // Serviço: Troca de Fluido
+    ],
+    timestamp: new Date(Date.now() - 3600000 * 5), // 5 hours ago
+    status: 'viewed',
+    totalPrice: (120*2) + 35 + 90,
+    customerName: 'Ana Costa',
+    vehicleInfo: 'Honda Civic 2020 Placa QWE-1234',
+    notes: 'Orçamento criado pelo escritório a pedido do cliente por telefone. Cliente agendou para próxima semana.'
   }
 ];
 
@@ -86,7 +107,7 @@ export function addSubmission(
   vehicleInfo?: string,
   notes?: string
 ): Submission {
-  const newId = `sub${_submissions.length + 1}_${Date.now()}`; // Ensure unique ID
+  const newId = `sub${_submissions.length + 1}_${Date.now()}`; 
   const totalPrice = items.reduce((acc, curr) => acc + curr.item.price * curr.quantity, 0);
   const newSubmission: Submission = {
     id: newId,
@@ -94,19 +115,21 @@ export function addSubmission(
     type,
     items,
     timestamp: new Date(),
-    status: 'pending',
+    status: 'pending', // New submissions are always pending
     totalPrice,
     customerName,
     vehicleInfo,
     notes,
   };
-  _submissions.unshift(newSubmission); // Add to the beginning to keep newest first easily
+  _submissions.unshift(newSubmission); 
   return newSubmission;
 }
 
 export function markSubmissionAsViewed(id: string): void {
-  const submission = _submissions.find(s => s.id === id);
-  if (submission) {
-    submission.status = 'viewed';
+  const submissionIndex = _submissions.findIndex(s => s.id === id);
+  if (submissionIndex > -1) {
+    _submissions[submissionIndex] = { ..._submissions[submissionIndex], status: 'viewed' };
   }
 }
+
+    
