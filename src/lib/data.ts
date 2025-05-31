@@ -1,5 +1,5 @@
 
-import type { PartOrService, Mechanic, Submission, SubmissionType, SelectedItem } from '@/types';
+import type { PartOrService, Mechanic, Submission, SubmissionType, SelectedItem, PartOrServiceFormData } from '@/types';
 
 // Adicionando um mecânico/usuário para o escritório
 export const mechanics: Mechanic[] = [
@@ -8,7 +8,7 @@ export const mechanics: Mechanic[] = [
   { id: 'office_user', name: 'Escritório AutoService', photoUrl: 'https://placehold.co/40x40.png?text=AS', aiHint: 'office building' },
 ];
 
-export const partsAndServices: PartOrService[] = [
+export let partsAndServices: PartOrService[] = [
   { id: 'ps1', name: 'Fita Isolante Rolo 5m', price: 5.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'insulating tape', type: 'part' },
   { id: 'ps2', name: 'Lâmpada H4 55/60W (Farol)', price: 25.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'car light', type: 'part' },
   { id: 'ps3', name: 'Óleo Motor Semissintético 10W40 API SN 1L', price: 45.00, imageUrl: 'https://placehold.co/150x150.png', aiHint: 'oil bottle', type: 'part' },
@@ -79,8 +79,30 @@ let _submissions: Submission[] = [
 
 
 export function getPartsAndServices(): PartOrService[] {
-  return partsAndServices;
+  return [...partsAndServices].sort((a, b) => a.name.localeCompare(b.name));
 }
+
+export function getPartOrServiceById(id: string): PartOrService | undefined {
+  return partsAndServices.find(item => item.id === id);
+}
+
+export function addPartOrService(data: PartOrServiceFormData): PartOrService {
+  const newId = `ps${partsAndServices.length + 1}_${Date.now()}`;
+  const newItem: PartOrService = {
+    id: newId,
+    name: data.name,
+    price: data.price,
+    type: data.type,
+    imageUrl: data.imageUrl || `https://placehold.co/150x150.png?text=${data.name.substring(0,3)}`,
+    aiHint: data.aiHint || data.name.toLowerCase().split(' ').slice(0,2).join(' '),
+  };
+  partsAndServices.push(newItem);
+  return newItem;
+}
+
+// TODO: Implement updatePartOrService
+// TODO: Implement deletePartOrService
+
 
 export function getMechanics(): Mechanic[] {
   return mechanics;
@@ -128,8 +150,7 @@ export function addSubmission(
 export function markSubmissionAsViewed(id: string): void {
   const submissionIndex = _submissions.findIndex(s => s.id === id);
   if (submissionIndex > -1) {
+    // Create a new object for the updated submission to help with React's change detection
     _submissions[submissionIndex] = { ..._submissions[submissionIndex], status: 'viewed' };
   }
 }
-
-    

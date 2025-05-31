@@ -2,9 +2,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-// import { redirect } from "next/navigation"; // No longer redirecting from server action
-import { addSubmission, getPartsAndServices, markSubmissionAsViewed as markSubmissionViewedDb } from "@/lib/data";
-import type { PartOrService, SelectedItem, SubmissionType } from "@/types";
+import { addSubmission, getPartsAndServices, markSubmissionAsViewed as markSubmissionViewedDb, addPartOrService as addPartOrServiceDb } from "@/lib/data";
+import type { PartOrService, SelectedItem, SubmissionType, PartOrServiceFormData } from "@/types";
 import { suggestRelatedParts as genAiSuggestRelatedParts } from "@/ai/flows/suggest-related-parts";
 import type { SuggestRelatedPartsInput, SuggestRelatedPartsOutput } from "@/ai/flows/suggest-related-parts";
 
@@ -24,7 +23,7 @@ export interface SubmitJobResult {
 }
 
 export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitJobResult> {
-  const allPartsAndServices = getPartsAndServices();
+  const allPartsAndServices = getPartsAndServices(); // Fetch current list
   const selectedItems: SelectedItem[] = args.selectedItemsData
     .map(data => {
       const itemDetails = allPartsAndServices.find(ps => ps.id === data.itemId);
@@ -50,8 +49,8 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitJobRes
       args.notes
     );
     
-    revalidatePath("/desktop", "layout"); // Revalidate all desktop pages
-    revalidatePath("/mobile", "layout"); // Revalidate all mobile pages
+    revalidatePath("/desktop", "layout"); 
+    revalidatePath("/mobile", "layout"); 
     
     return { success: true, submissionId: newSubmission.id, message: "Registro enviado com sucesso!" };
 
@@ -74,13 +73,13 @@ export async function getAiSuggestionsAction(
 
   try {
     const output: SuggestRelatedPartsOutput = await genAiSuggestRelatedParts(input);
-    const allPartsAndServices = getPartsAndServices();
+    const allPartsAndServicesData = getPartsAndServices(); // Fetch current list
     
     const suggestions = output.suggestedPartsAndServices
-      .map(name => allPartsAndServices.find(ps => ps.name === name))
-      .filter(item => item !== undefined && !currentSelectionNames.includes(item.name)) as PartOrService[]; // Also filter out already selected items based on name from output
+      .map(name => allPartsAndServicesData.find(ps => ps.name === name))
+      .filter(item => item !== undefined && !currentSelectionNames.includes(item.name)) as PartOrService[]; 
       
-    return suggestions.slice(0, 5); // Limit to 5 suggestions
+    return suggestions.slice(0, 5); 
   } catch (error) {
     console.error("Error getting AI suggestions:", error);
     return [];
@@ -94,8 +93,25 @@ export async function markSubmissionAsViewedAction(submissionId: string) {
     revalidatePath(`/desktop/job/${submissionId}`); 
   } catch (error) {
     console.error("Failed to mark submission as viewed:", error);
-    // Optionally, throw the error or return an error object if the client needs to handle it
   }
 }
 
-    
+
+export async function createPartOrServiceAction(
+  data: PartOrServiceFormData
+): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
+  try {
+    // Here you would typically validate the data further if needed, or Zod already handled it
+    const newItem = addPartOrServiceDb(data);
+    revalidatePath("/desktop/inventory");
+    revalidatePath("/mobile/new-submission"); // Revalidate pages where parts list is used
+    revalidatePath("/desktop/new-submission");
+    return { success: true, message: "Item adicionado com sucesso!", item: newItem };
+  } catch (error) {
+    console.error("Failed to create part or service:", error);
+    return { success: false, message: "Falha ao adicionar o item. Tente novamente." };
+  }
+}
+
+// TODO: updatePartOrServiceAction
+// TODO: deletePartOrServiceAction
