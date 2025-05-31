@@ -16,7 +16,7 @@ export default function RootLayout({
   children,
 }: RootLayoutProps) {
   return (
-    <html lang="pt-BR" className="dark"> {/* Added dark class here */}
+    <html lang="pt-BR" className="dark">{/* Removed whitespace here */}
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
