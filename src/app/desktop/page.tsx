@@ -5,22 +5,27 @@ import type { Submission, Mechanic, PartOrService } from '@/types';
 import { SubmissionCard } from '@/components/desktop/SubmissionCard';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, PlusCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button'; // Added Button import
+import { Button } from '@/components/ui/button';
 
 // Assume a default mechanic for office submissions
 const OFFICE_MECHANIC_ID = 'office_user';
 
 
-export default function DesktopDashboardPage() {
-  const submissions = getSubmissions();
+export default async function DesktopDashboardPage() { // Made this an async function
+  const submissions = await getSubmissions(); // Await the promise
   const mechanics = submissions.reduce((acc, sub) => {
     if (!acc[sub.mechanicId]) {
+      // getMechanicById is synchronous as it reads from an in-memory array
       acc[sub.mechanicId] = getMechanicById(sub.mechanicId);
     }
     return acc;
   }, {} as Record<string, Mechanic | undefined>);
 
-  const allPartsAndServices = getPartsAndServices(); 
+  // getPartsAndServices is now async as it reads from Firestore
+  // However, it's not directly used in the rendering logic of this page itself,
+  // but it's good practice to fetch it if it were needed for something here.
+  // For now, we'll comment it out if not immediately used to avoid an unnecessary async call here.
+  // const allPartsAndServices = await getPartsAndServices(); 
 
   return (
     <div className="space-y-8">
@@ -58,7 +63,8 @@ export default function DesktopDashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {submissions.map((submission) => {
-            const mechanic = mechanics[submission.mechanicId] || getMechanicById(submission.mechanicId); // Ensure mechanic is fetched if not in accumulated list (e.g. office_user)
+            // The mechanic object is already resolved from the reduce block above
+            const mechanic = mechanics[submission.mechanicId]; 
             return (
               <SubmissionCard
                 key={submission.id}
