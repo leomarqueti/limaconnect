@@ -1,3 +1,4 @@
+
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -11,6 +12,9 @@ export interface SubmitJobArgs {
   mechanicId: string;
   submissionType: SubmissionType;
   selectedItemsData: { itemId: string; quantity: number }[];
+  customerName?: string;
+  vehicleInfo?: string;
+  notes?: string;
 }
 
 export async function submitJobAction(args: SubmitJobArgs) {
@@ -23,22 +27,31 @@ export async function submitJobAction(args: SubmitJobArgs) {
     })
     .filter(item => item !== null) as SelectedItem[];
 
-  if (selectedItems.length === 0) {
-    return { success: false, message: "Nenhum item selecionado." };
+  if (selectedItems.length === 0 && args.submissionType === 'finished') { // Allow quotes with no items for now, but finished services should have items.
+    return { success: false, message: "Serviços finalizados devem conter ao menos um item." };
+  }
+   if (selectedItems.length === 0 && args.submissionType === 'quote' && !args.notes && !args.customerName && !args.vehicleInfo) {
+    return { success: false, message: "Orçamentos vazios devem conter ao menos uma observação, cliente ou veículo." };
   }
 
+
   try {
-    addSubmission(args.mechanicId, args.submissionType, selectedItems);
-    revalidatePath("/desktop"); // Revalidate desktop page to show new submission
-    revalidatePath("/mobile/new-submission"); // Revalidate to clear form or show success
+    addSubmission(
+      args.mechanicId, 
+      args.submissionType, 
+      selectedItems,
+      args.customerName,
+      args.vehicleInfo,
+      args.notes
+    );
+    revalidatePath("/desktop"); 
+    revalidatePath("/mobile/new-submission"); 
   } catch (error) {
     console.error("Failed to submit job:", error);
     return { success: false, message: "Falha ao enviar o registro. Tente novamente." };
   }
   
-  // Redirect to mobile home after submission
   redirect("/mobile");
-  // return { success: true, message: "Registro enviado com sucesso!" };
 }
 
 export async function getAiSuggestionsAction(
@@ -56,13 +69,12 @@ export async function getAiSuggestionsAction(
     const output: SuggestRelatedPartsOutput = await genAiSuggestRelatedParts(input);
     const allPartsAndServices = getPartsAndServices();
     
-    // Filter out already selected items and map names to PartOrService objects
     const suggestions = output.suggestedPartsAndServices
       .filter(name => !currentSelectionNames.includes(name))
       .map(name => allPartsAndServices.find(ps => ps.name === name))
       .filter(item => item !== undefined) as PartOrService[];
       
-    return suggestions.slice(0, 5); // Limit suggestions
+    return suggestions.slice(0, 5); 
   } catch (error) {
     console.error("Error getting AI suggestions:", error);
     return [];
@@ -76,6 +88,5 @@ export async function markSubmissionAsViewedAction(submissionId: string) {
     revalidatePath(`/desktop/job/${submissionId}`);
   } catch (error) {
     console.error("Failed to mark submission as viewed:", error);
-    // Handle error appropriately, maybe return an error object
   }
 }

@@ -1,3 +1,4 @@
+
 export interface PartOrService {
   id: string;
   name: string;
@@ -29,4 +30,7 @@ export interface Submission {
   timestamp: Date;
   totalPrice?: number;
   status: 'pending' | 'viewed'; // For desktop notifications
+  customerName?: string;
+  vehicleInfo?: string;
+  notes?: string;
 }

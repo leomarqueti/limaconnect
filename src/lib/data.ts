@@ -34,6 +34,9 @@ let _submissions: Submission[] = [
     timestamp: new Date(Date.now() - 3600000 * 2), // 2 hours ago
     status: 'viewed',
     totalPrice: (25*2) + 20,
+    customerName: 'Maria Oliveira',
+    vehicleInfo: 'Fiat Palio 2010 Placa XYZ-7890',
+    notes: 'Verificar barulho na suspensão dianteira também.'
   },
   {
     id: 'sub2',
@@ -47,6 +50,9 @@ let _submissions: Submission[] = [
     timestamp: new Date(Date.now() - 3600000 * 1), // 1 hour ago
     status: 'pending',
     totalPrice: (45*4) + 30 + 80,
+    customerName: 'José Pereira',
+    vehicleInfo: 'Ford Ka 2018 Placa JKL-4567',
+    notes: 'Cliente solicitou urgência.'
   }
 ];
 
@@ -72,8 +78,15 @@ export function getSubmissionById(id: string): Submission | undefined {
   return _submissions.find(s => s.id === id);
 }
 
-export function addSubmission(mechanicId: string, type: SubmissionType, items: SelectedItem[]): Submission {
-  const newId = `sub${_submissions.length + 1 + Date.now()}`;
+export function addSubmission(
+  mechanicId: string, 
+  type: SubmissionType, 
+  items: SelectedItem[],
+  customerName?: string,
+  vehicleInfo?: string,
+  notes?: string
+): Submission {
+  const newId = `sub${_submissions.length + 1}_${Date.now()}`; // Ensure unique ID
   const totalPrice = items.reduce((acc, curr) => acc + curr.item.price * curr.quantity, 0);
   const newSubmission: Submission = {
     id: newId,
@@ -83,8 +96,11 @@ export function addSubmission(mechanicId: string, type: SubmissionType, items: S
     timestamp: new Date(),
     status: 'pending',
     totalPrice,
+    customerName,
+    vehicleInfo,
+    notes,
   };
-  _submissions.push(newSubmission);
+  _submissions.unshift(newSubmission); // Add to the beginning to keep newest first easily
   return newSubmission;
 }
 
