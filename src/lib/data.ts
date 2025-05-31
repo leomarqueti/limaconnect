@@ -16,10 +16,11 @@ const submissionsCollection = collection(db, 'submissions');
 const usersCollection = collection(db, 'users'); // Firestore collection for users
 
 // Helper para conversão segura de timestamp
-function safeTimestampToDate(firestoreTimestamp: any): Date {
+export function safeTimestampToDate(firestoreTimestamp: any): Date {
   if (firestoreTimestamp instanceof Timestamp) {
     return firestoreTimestamp.toDate();
   }
+  // Firestore SDK for web sometimes returns an object with toDate but not an instance of Timestamp
   if (firestoreTimestamp && typeof firestoreTimestamp.toDate === 'function') {
     return firestoreTimestamp.toDate();
   }
@@ -32,8 +33,9 @@ function safeTimestampToDate(firestoreTimestamp: any): Date {
       if (!isNaN(d.getTime())) return d;
     } catch (e) { /* ignore parsing errors */ }
   }
-  console.warn("safeTimestampToDate: Could not parse timestamp, returning current date as fallback.", firestoreTimestamp);
-  return new Date();
+  // Fallback if conversion fails or input is unexpected
+  // console.warn("safeTimestampToDate: Could not parse timestamp, returning current date as fallback.", firestoreTimestamp);
+  return new Date(); // Consider if a different fallback is more appropriate, e.g., epoch or throw error
 }
 
 
@@ -125,7 +127,7 @@ export async function getUserFromFirestore(uid: string): Promise<UserProfile | n
       email: data.email,
       displayName: data.displayName,
       photoURL: data.photoURL,
-      createdAt: safeTimestampToDate(data.createdAt),
+      createdAt: safeTimestampToDate(data.createdAt as Timestamp | Date | string),
     } as UserProfile;
   }
   return null;
@@ -160,32 +162,34 @@ export function getMechanicById(id: string): Mechanic | undefined {
   return mechanics.find(m => m.id === id);
 }
 
+// This function can still be used for non-realtime fetches if needed elsewhere,
+// but DesktopDashboardPage will now use onSnapshot for its primary data.
 export async function getSubmissions(): Promise<Submission[]> {
   const q = query(submissionsCollection, where("isArchived", "==", false), orderBy('timestamp', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => {
-    const data = doc.data();
+  return snapshot.docs.map(docSnap => {
+    const data = docSnap.data();
     return {
-      id: doc.id,
+      id: docSnap.id,
       mechanicId: data.mechanicId || '',
       type: data.type || 'quote',
-      timestamp: safeTimestampToDate(data.timestamp),
+      timestamp: safeTimestampToDate(data.timestamp as Timestamp | Date | string),
       status: data.status || 'pending',
       isArchived: data.isArchived === true, // Garante que seja booleano, default false
-      items: Array.isArray(data.items) ? data.items : (data.type !== 'checkin' ? [] : undefined),
-      totalPrice: typeof data.totalPrice === 'number' ? data.totalPrice : (data.type !== 'checkin' ? 0 : undefined),
+      items: data.type !== 'checkin' ? (Array.isArray(data.items) ? data.items : []) : undefined,
+      totalPrice: data.type !== 'checkin' ? (typeof data.totalPrice === 'number' ? data.totalPrice : 0) : undefined,
       customerName: data.customerName || undefined,
       vehicleInfo: data.vehicleInfo || undefined,
       notes: data.notes || undefined,
-      customerContact: data.customerContact || undefined,
-      vehicleMake: data.vehicleMake || undefined,
-      vehicleModel: data.vehicleModel || undefined,
-      vehicleYear: data.vehicleYear || undefined,
-      vehicleVIN: data.vehicleVIN || undefined,
-      vehicleLicensePlate: data.vehicleLicensePlate || undefined,
-      serviceRequestDetails: data.serviceRequestDetails || undefined,
-      checklistItems: Array.isArray(data.checklistItems) ? data.checklistItems : (data.type === 'checkin' ? [] : undefined) as ChecklistItemValue[] | undefined,
-      photoDataUris: Array.isArray(data.photoDataUris) ? data.photoDataUris : (data.type === 'checkin' ? [] : undefined) as string[] | undefined,
+      customerContact: data.type === 'checkin' ? (data.customerContact || undefined) : undefined,
+      vehicleMake: data.type === 'checkin' ? (data.vehicleMake || undefined) : undefined,
+      vehicleModel: data.type === 'checkin' ? (data.vehicleModel || undefined) : undefined,
+      vehicleYear: data.type === 'checkin' ? (data.vehicleYear || undefined) : undefined,
+      vehicleVIN: data.type === 'checkin' ? (data.vehicleVIN || undefined) : undefined,
+      vehicleLicensePlate: data.type === 'checkin' ? (data.vehicleLicensePlate || undefined) : undefined,
+      serviceRequestDetails: data.type === 'checkin' ? (data.serviceRequestDetails || undefined) : undefined,
+      checklistItems: data.type === 'checkin' ? (Array.isArray(data.checklistItems) ? data.checklistItems : []) : undefined as ChecklistItemValue[] | undefined,
+      photoDataUris: data.type === 'checkin' ? (Array.isArray(data.photoDataUris) ? data.photoDataUris : []) : undefined as string[] | undefined,
     } as Submission;
   });
 }
@@ -193,29 +197,29 @@ export async function getSubmissions(): Promise<Submission[]> {
 export async function getArchivedSubmissionsFromFirestore(): Promise<Submission[]> {
   const q = query(submissionsCollection, where("isArchived", "==", true), orderBy('timestamp', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => {
-    const data = doc.data();
+  return snapshot.docs.map(docSnap => {
+    const data = docSnap.data();
     return {
-      id: doc.id,
+      id: docSnap.id,
       mechanicId: data.mechanicId || '',
       type: data.type || 'quote',
-      timestamp: safeTimestampToDate(data.timestamp),
+      timestamp: safeTimestampToDate(data.timestamp as Timestamp | Date | string),
       status: data.status || 'pending', // Status might be less relevant for archived items
       isArchived: true, // Explicitly true
-      items: Array.isArray(data.items) ? data.items : (data.type !== 'checkin' ? [] : undefined),
-      totalPrice: typeof data.totalPrice === 'number' ? data.totalPrice : (data.type !== 'checkin' ? 0 : undefined),
+      items: data.type !== 'checkin' ? (Array.isArray(data.items) ? data.items : []) : undefined,
+      totalPrice: data.type !== 'checkin' ? (typeof data.totalPrice === 'number' ? data.totalPrice : 0) : undefined,
       customerName: data.customerName || undefined,
       vehicleInfo: data.vehicleInfo || undefined,
       notes: data.notes || undefined,
-      customerContact: data.customerContact || undefined,
-      vehicleMake: data.vehicleMake || undefined,
-      vehicleModel: data.vehicleModel || undefined,
-      vehicleYear: data.vehicleYear || undefined,
-      vehicleVIN: data.vehicleVIN || undefined,
-      vehicleLicensePlate: data.vehicleLicensePlate || undefined,
-      serviceRequestDetails: data.serviceRequestDetails || undefined,
-      checklistItems: Array.isArray(data.checklistItems) ? data.checklistItems : (data.type === 'checkin' ? [] : undefined) as ChecklistItemValue[] | undefined,
-      photoDataUris: Array.isArray(data.photoDataUris) ? data.photoDataUris : (data.type === 'checkin' ? [] : undefined) as string[] | undefined,
+      customerContact: data.type === 'checkin' ? (data.customerContact || undefined) : undefined,
+      vehicleMake: data.type === 'checkin' ? (data.vehicleMake || undefined) : undefined,
+      vehicleModel: data.type === 'checkin' ? (data.vehicleModel || undefined) : undefined,
+      vehicleYear: data.type === 'checkin' ? (data.vehicleYear || undefined) : undefined,
+      vehicleVIN: data.type === 'checkin' ? (data.vehicleVIN || undefined) : undefined,
+      vehicleLicensePlate: data.type === 'checkin' ? (data.vehicleLicensePlate || undefined) : undefined,
+      serviceRequestDetails: data.type === 'checkin' ? (data.serviceRequestDetails || undefined) : undefined,
+      checklistItems: data.type === 'checkin' ? (Array.isArray(data.checklistItems) ? data.checklistItems : []) : undefined as ChecklistItemValue[] | undefined,
+      photoDataUris: data.type === 'checkin' ? (Array.isArray(data.photoDataUris) ? data.photoDataUris : []) : undefined as string[] | undefined,
     } as Submission;
   });
 }
@@ -234,23 +238,23 @@ export async function getSubmissionById(id: string): Promise<Submission | undefi
         id: docSnap.id,
         mechanicId: data.mechanicId || '',
         type: data.type || 'quote',
-        timestamp: safeTimestampToDate(data.timestamp),
+        timestamp: safeTimestampToDate(data.timestamp as Timestamp | Date | string),
         status: data.status || 'pending',
         isArchived: data.isArchived === true,
-        items: Array.isArray(data.items) ? data.items : (data.type !== 'checkin' ? [] : undefined),
-        totalPrice: typeof data.totalPrice === 'number' ? data.totalPrice : (data.type !== 'checkin' ? 0 : undefined),
+        items: data.type !== 'checkin' ? (Array.isArray(data.items) ? data.items : []) : undefined,
+        totalPrice: data.type !== 'checkin' ? (typeof data.totalPrice === 'number' ? data.totalPrice : 0) : undefined,
         customerName: data.customerName || undefined,
         vehicleInfo: data.vehicleInfo || undefined,
         notes: data.notes || undefined,
-        customerContact: data.customerContact || undefined,
-        vehicleMake: data.vehicleMake || undefined,
-        vehicleModel: data.vehicleModel || undefined,
-        vehicleYear: data.vehicleYear || undefined,
-        vehicleVIN: data.vehicleVIN || undefined,
-        vehicleLicensePlate: data.vehicleLicensePlate || undefined,
-        serviceRequestDetails: data.serviceRequestDetails || undefined,
-        checklistItems: Array.isArray(data.checklistItems) ? data.checklistItems : (data.type === 'checkin' ? [] : undefined) as ChecklistItemValue[] | undefined,
-        photoDataUris: Array.isArray(data.photoDataUris) ? data.photoDataUris : (data.type === 'checkin' ? [] : undefined) as string[] | undefined,
+        customerContact: data.type === 'checkin' ? (data.customerContact || undefined) : undefined,
+        vehicleMake: data.type === 'checkin' ? (data.vehicleMake || undefined) : undefined,
+        vehicleModel: data.type === 'checkin' ? (data.vehicleModel || undefined) : undefined,
+        vehicleYear: data.type === 'checkin' ? (data.vehicleYear || undefined) : undefined,
+        vehicleVIN: data.type === 'checkin' ? (data.vehicleVIN || undefined) : undefined,
+        vehicleLicensePlate: data.type === 'checkin' ? (data.vehicleLicensePlate || undefined) : undefined,
+        serviceRequestDetails: data.type === 'checkin' ? (data.serviceRequestDetails || undefined) : undefined,
+        checklistItems: data.type === 'checkin' ? (Array.isArray(data.checklistItems) ? data.checklistItems : []) : undefined as ChecklistItemValue[] | undefined,
+        photoDataUris: data.type === 'checkin' ? (Array.isArray(data.photoDataUris) ? data.photoDataUris : []) : undefined as string[] | undefined,
       } as Submission;
     } else {
       console.warn(`No submission found in Firestore with ID: ${id}`);
@@ -342,3 +346,5 @@ export async function archiveSubmissionInFirestore(submissionId: string): Promis
     return false;
   }
 }
+
+    
