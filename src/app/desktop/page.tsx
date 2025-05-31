@@ -1,69 +1,74 @@
 
-"use client"; // Convert to Client Component
+"use client"; 
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react'; // For fetching data
-import { getSubmissions, getMechanicById } from '@/lib/data';
-import type { Submission, Mechanic } from '@/types';
+import { useEffect, useState } from 'react';
+import { getSubmissions, getUserFromFirestore } from '@/lib/data'; // Import getUserFromFirestore
+import type { Submission, UserProfile } from '@/types'; // Import UserProfile
 import { SubmissionCard } from '@/components/desktop/SubmissionCard';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, PlusCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DesktopDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [mechanicsMap, setMechanicsMap] = useState<Record<string, Mechanic | undefined>>({});
+  const [userProfilesMap, setUserProfilesMap] = useState<Record<string, UserProfile | null>>({}); // Store fetched profiles
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
   useEffect(() => {
-    async function fetchSubmissions() {
+    async function fetchSubmissionsAndProfiles() {
       if (!authLoading && !user) {
-        // User not logged in, layout should handle redirect.
-        // Or we could push to login here as well.
         setIsLoadingSubmissions(false);
         return;
       }
       
-      if (user) { // Only fetch if user is available
+      if (user) {
         setIsLoadingSubmissions(true);
+        setIsLoadingProfiles(true);
         try {
           const fetchedSubmissions = await getSubmissions();
           setSubmissions(fetchedSubmissions);
 
-          // Pre-resolve mechanic details
-          const resolvedMechanics: Record<string, Mechanic | undefined> = {};
-          for (const sub of fetchedSubmissions) {
-            if (!resolvedMechanics[sub.mechanicId]) {
-              // getMechanicById is synchronous, but if it were async, we'd await it here.
-              // This part will mostly be undefined if mechanicId is a UID not in the static array.
-              resolvedMechanics[sub.mechanicId] = getMechanicById(sub.mechanicId);
+          // Fetch user profiles for each unique mechanicId
+          const uniqueMechanicIds = [...new Set(fetchedSubmissions.map(sub => sub.mechanicId))];
+          const profiles: Record<string, UserProfile | null> = {};
+          
+          for (const uid of uniqueMechanicIds) {
+            if (!userProfilesMap[uid]) { // Avoid refetching if already fetched
+              profiles[uid] = await getUserFromFirestore(uid);
+            } else {
+              profiles[uid] = userProfilesMap[uid];
             }
           }
-          setMechanicsMap(resolvedMechanics);
+          setUserProfilesMap(prev => ({ ...prev, ...profiles }));
+          setIsLoadingProfiles(false);
+
         } catch (error) {
-          console.error("Failed to load submissions:", error);
+          console.error("Failed to load submissions or profiles:", error);
           toast({
             variant: "destructive",
-            title: "Erro ao Carregar Submissões",
-            description: "Não foi possível buscar os registros do banco de dados.",
+            title: "Erro ao Carregar Dados",
+            description: "Não foi possível buscar os registros ou perfis do banco de dados.",
           });
           setSubmissions([]);
+          setIsLoadingProfiles(false);
         } finally {
           setIsLoadingSubmissions(false);
         }
       }
     }
     
-    if (!authLoading) { // Wait for auth state to be resolved
-      fetchSubmissions();
+    if (!authLoading) {
+      fetchSubmissionsAndProfiles();
     }
-  }, [user, authLoading, toast]);
+  }, [user, authLoading, toast]); // Removed userProfilesMap from dependencies to avoid loop, will manage refetching differently if needed
 
-  if (authLoading || (isLoadingSubmissions && user)) { // Show loader if auth is loading OR submissions are loading (and user is present)
+  if (authLoading || (isLoadingSubmissions && user)) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -72,7 +77,7 @@ export default function DesktopDashboardPage() {
     );
   }
   
-  const officeUserId = user?.uid; // Get logged-in user's UID for new submissions from desktop
+  const officeUserId = user?.uid;
 
   return (
     <div className="space-y-8">
@@ -99,7 +104,7 @@ export default function DesktopDashboardPage() {
         </div>
       </div>
 
-      {submissions.length === 0 && !isLoadingSubmissions ? (
+      {submissions.length === 0 && !isLoadingSubmissions && !isLoadingProfiles ? (
         <Alert>
           <ListChecks className="h-4 w-4" />
           <AlertTitle>Nenhuma Submissão</AlertTitle>
@@ -108,18 +113,26 @@ export default function DesktopDashboardPage() {
           </AlertDescription>
         </Alert>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {submissions.map((submission) => {
-            const mechanic = mechanicsMap[submission.mechanicId];
-            return (
-              <SubmissionCard
-                key={submission.id}
-                submission={submission}
-                mechanic={mechanic} 
-              />
-            );
-          })}
-        </div>
+        <>
+          {(isLoadingSubmissions || isLoadingProfiles) && submissions.length === 0 && (
+             <div className="flex justify-center items-center h-32">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="ml-2 text-muted-foreground">Carregando registros...</p>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {submissions.map((submission) => {
+              const submitterProfile = userProfilesMap[submission.mechanicId];
+              return (
+                <SubmissionCard
+                  key={submission.id}
+                  submission={submission}
+                  submitterProfile={submitterProfile || undefined} // Pass undefined if profile is null or not found
+                />
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,21 +1,21 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import type { Submission, Mechanic } from '@/types';
+import type { Submission, UserProfile } from '@/types'; // Changed Mechanic to UserProfile
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Tag, User, Wrench, FileText, CheckCircle, AlertCircle, Eye, Car, UserCircle as UserIcon } from 'lucide-react'; // Added Car icon and UserIcon
+import { Clock, Tag, User, Wrench, FileText, CheckCircle, AlertCircle, Eye, Car, UserCircle as UserIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface SubmissionCardProps {
   submission: Submission;
-  mechanic?: Mechanic; // This might be undefined if submission.mechanicId is a UID not in the static list
+  submitterProfile?: UserProfile; // Changed from mechanic?: Mechanic
 }
 
-export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
+export function SubmissionCard({ submission, submitterProfile }: SubmissionCardProps) {
   const isPending = submission.status === 'pending';
   const cardClasses = `transition-all duration-300 ease-in-out hover:shadow-xl ${
     isPending ? 'border-primary shadow-primary/20 animate-pulse-border' : 'border-border'
@@ -45,30 +45,43 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
   const StatusIcon = isPending ? AlertCircle : Eye;
   const statusVariant = isPending ? 'destructive' : 'default';
 
-  const submitterName = mechanic?.name || `Usuário ID: ${submission.mechanicId.substring(0, 8)}...`;
-  const submitterAvatarFallback = mechanic?.name ? mechanic.name.substring(0, 2).toUpperCase() : submission.mechanicId.substring(0,2).toUpperCase();
-  const submitterAiHint = mechanic?.aiHint || 'user icon';
+  const submitterDisplayName = submitterProfile?.displayName || `Usuário ID: ${submission.mechanicId.substring(0, 8)}...`;
+  const submitterAvatarFallback = submitterProfile?.displayName 
+    ? submitterProfile.displayName.substring(0, 2).toUpperCase() 
+    : submission.mechanicId.substring(0,2).toUpperCase();
+  const avatarAiHint = submitterProfile?.displayName ? "user profile" : "user icon";
+
+
+  let cardTitle = submitterDisplayName;
+  let cardDescription = `ID Usuário: ${submission.mechanicId.substring(0,12)}...`;
+
+  if (submission.mechanicId === 'office_user') {
+    cardTitle = "Escritório Lima Connect";
+    cardDescription = "Registro via Painel Desktop";
+  } else if (submission.mechanicId === 'tablet_user') {
+    cardTitle = "Recepção / Check-in";
+    cardDescription = "Registro via Tablet";
+  } else if (submitterProfile) {
+     cardTitle = submitterProfile.displayName;
+     cardDescription = submitterProfile.email || `ID: ${submission.mechanicId.substring(0,12)}...`;
+  }
+
 
   return (
     <Card className={cardClasses}>
       <CardHeader className="pb-3">
         <div className="flex items-center space-x-3 mb-3">
           <Avatar className="h-10 w-10 border">
-            {mechanic?.photoUrl ? (
-              <AvatarImage src={mechanic.photoUrl} alt={submitterName} data-ai-hint={submitterAiHint} />
+            {submitterProfile?.photoURL ? (
+              <AvatarImage src={submitterProfile.photoURL} alt={submitterDisplayName} data-ai-hint={avatarAiHint} />
             ) : (
-              // Fallback icon if no photoUrl (e.g. for UIDs not in static list)
               <UserIcon className="h-full w-full p-2 text-muted-foreground" /> 
             )}
             <AvatarFallback>{submitterAvatarFallback}</AvatarFallback>
           </Avatar>
           <div>
-            <CardTitle className="text-lg font-semibold">{submitterName}</CardTitle>
-            <CardDescription className="text-xs">
-              {submission.type === 'checkin' && !mechanic ? `Registrado por: Recepção` : 
-               submission.type === 'checkin' && mechanic ? `Registrado por: ${mechanic.name}` :
-               `ID Usuário: ${submission.mechanicId.substring(0,12)}...`}
-            </CardDescription>
+            <CardTitle className="text-lg font-semibold">{cardTitle}</CardTitle>
+            <CardDescription className="text-xs">{cardDescription}</CardDescription>
           </div>
         </div>
         <div className="flex justify-between items-center">
