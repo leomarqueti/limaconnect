@@ -8,11 +8,20 @@ export interface PartOrService {
   type: 'part' | 'service';
 }
 
-export interface Mechanic {
-  id: string;
+export interface Mechanic { // This might represent pre-defined system users or roles later
+  id: string; // Could be a Firebase UID for some specific system users
   name: string;
   photoUrl: string;
   aiHint: string; // For data-ai-hint for avatar
+}
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string; // Optional, could be from Firebase Auth or custom
+  // role?: 'mechanic' | 'office' | 'admin'; // For future role-based access
+  createdAt: Date; // Will store as Firestore Timestamp, convert to Date on read
 }
 
 export interface SelectedItem {
@@ -32,7 +41,7 @@ export interface ChecklistItemValue {
 
 export interface Submission {
   id: string;
-  mechanicId: string; // For 'quote'/'finished', this is the mechanic. For 'checkin', could be 'tablet_user'.
+  mechanicId: string; // Firebase UID of the user who created the submission
   type: SubmissionType;
   timestamp: Date;
   status: 'pending' | 'viewed'; // For desktop notifications

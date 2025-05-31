@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
-import type { PartOrService, Mechanic, Submission, PartOrServiceFormData, SelectedItem } from '@/types';
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, getDoc, Timestamp, setDoc } from 'firebase/firestore';
+import type { PartOrService, Mechanic, Submission, PartOrServiceFormData, SelectedItem, UserProfile } from '@/types';
 
 // Adicionando um mecânico/usuário para o escritório e para o tablet
 export const mechanics: Mechanic[] = [
@@ -13,28 +13,26 @@ export const mechanics: Mechanic[] = [
 
 const partsAndServicesCollection = collection(db, 'partsAndServices');
 const submissionsCollection = collection(db, 'submissions');
+const usersCollection = collection(db, 'users'); // Firestore collection for users
 
 // Helper para conversão segura de timestamp
 function safeTimestampToDate(firestoreTimestamp: any): Date {
   if (firestoreTimestamp instanceof Timestamp) {
     return firestoreTimestamp.toDate();
   }
-  if (firestoreTimestamp && typeof firestoreTimestamp.toDate === 'function') { // Compatibility for older SDK versions or other Timestamp-like objects
+  if (firestoreTimestamp && typeof firestoreTimestamp.toDate === 'function') { 
     return firestoreTimestamp.toDate();
   }
   if (firestoreTimestamp instanceof Date) {
-    return firestoreTimestamp; // Already a Date
+    return firestoreTimestamp; 
   }
-  // Attempt to parse if it's a string or number (e.g., from older data)
   if (typeof firestoreTimestamp === 'string' || typeof firestoreTimestamp === 'number') {
     try {
       const d = new Date(firestoreTimestamp);
       if (!isNaN(d.getTime())) return d;
     } catch (e) { /* ignore parsing errors */ }
   }
-  // Fallback or error handling if conversion is not possible
-  // console.warn("Could not convert timestamp:", firestoreTimestamp);
-  return new Date(); // Default to now, or throw error
+  return new Date(); 
 }
 
 
@@ -64,12 +62,10 @@ export async function addPartOrService(data: PartOrServiceFormData): Promise<Par
     createdAt: serverTimestamp(),
   };
   const docRef = await addDoc(partsAndServicesCollection, newItemData);
-  // To return the full object including the server-generated timestamp, we'd ideally fetch it again
-  // For simplicity, we return the input data with the new ID.
   return { 
     id: docRef.id, 
     ...data, 
-    imageUrl: newItemData.imageUrl, // ensure placeholder is included if original was empty
+    imageUrl: newItemData.imageUrl, 
     aiHint: newItemData.aiHint 
   } as PartOrService;
 }
@@ -105,11 +101,42 @@ export async function deletePartOrService(id: string): Promise<boolean> {
   }
 }
 
+// User related functions
+export async function addUserToFirestore(uid: string, email: string, displayName: string): Promise<void> {
+  const userRef = doc(usersCollection, uid);
+  const userData: Omit<UserProfile, 'uid' | 'createdAt'> & { createdAt: any } = { // Omit uid because it's the doc ID
+    email: email,
+    displayName: displayName,
+    // photoURL: firebaseUser.photoURL, // Can be added if available from Auth
+    createdAt: serverTimestamp(),
+  };
+  await setDoc(userRef, userData); // Use setDoc to create or overwrite user data with specific UID
+}
+
+export async function getUserFromFirestore(uid: string): Promise<UserProfile | null> {
+  if (!uid) return null;
+  const userRef = doc(usersCollection, uid);
+  const docSnap = await getDoc(userRef);
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    return {
+      uid: docSnap.id,
+      email: data.email,
+      displayName: data.displayName,
+      photoURL: data.photoURL,
+      createdAt: safeTimestampToDate(data.createdAt),
+    } as UserProfile;
+  }
+  return null;
+}
+
+
 export function getMechanics(): Mechanic[] {
-  return mechanics;
+  return mechanics; // This is the static list, will be superseded or augmented by Firestore users
 }
 
 export function getMechanicById(id: string): Mechanic | undefined {
+  // This still uses the static list. Future enhancement: check Firestore users too.
   return mechanics.find(m => m.id === id);
 }
 
@@ -126,7 +153,7 @@ export async function getSubmissions(): Promise<Submission[]> {
       status: data.status || 'pending',
       items: Array.isArray(data.items) ? data.items : (data.type !== 'checkin' ? [] : undefined),
       totalPrice: typeof data.totalPrice === 'number' ? data.totalPrice : (data.type !== 'checkin' ? 0 : undefined),
-      customerName: data.customerName || undefined, // Keep optional fields as undefined if not present
+      customerName: data.customerName || undefined, 
       vehicleInfo: data.vehicleInfo || undefined,
       notes: data.notes || undefined,
       customerContact: data.customerContact || undefined,
@@ -193,13 +220,12 @@ export async function addSubmission(submissionData: Omit<Submission, 'id' | 'tim
     }, 0);
   }
 
-  // Prepare the object to save, ensuring type consistency with Firestore
   const dataToSave: any = {
-    mechanicId: submissionData.mechanicId,
+    mechanicId: submissionData.mechanicId, // This will be the Firebase UID
     type: submissionData.type,
-    timestamp: serverTimestamp(), // Use Firestore server timestamp
+    timestamp: serverTimestamp(), 
     status: 'pending',
-    customerName: submissionData.customerName || null, // Use null for empty optional strings if preferred over undefined
+    customerName: submissionData.customerName || null, 
     vehicleInfo: submissionData.vehicleInfo || null,
     notes: submissionData.notes || null,
   };
@@ -221,13 +247,10 @@ export async function addSubmission(submissionData: Omit<Submission, 'id' | 'tim
   
   const docRef = await addDoc(submissionsCollection, dataToSave);
 
-  // Return a representation of the submission.
-  // The actual server timestamp will be set by Firestore.
-  // For immediate use, we might return a client-side timestamp or re-fetch.
   return {
     id: docRef.id,
-    ...submissionData, // Spread original data
-    timestamp: new Date(), // Placeholder client date, actual is server-generated
+    ...submissionData, 
+    timestamp: new Date(), 
     status: 'pending',
     totalPrice: (submissionData.type === 'quote' || submissionData.type === 'finished') ? totalPrice : undefined,
   } as Submission;
@@ -245,6 +268,5 @@ export async function markSubmissionAsViewed(id: string): Promise<void> {
     });
   } catch (error) {
     console.error(`Error marking submission ${id} as viewed in Firestore:`, error);
-    // Consider re-throwing or returning a status if the calling action needs to know about failures
   }
 }

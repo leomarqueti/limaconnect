@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth'; // Renamed to avoid conflict
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase'; 
@@ -9,31 +9,40 @@ import {
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   signOut,
-  createUserWithEmailAndPassword, // Adicionado
+  createUserWithEmailAndPassword,
   type AuthError
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
+import type { UserProfile } from '@/types'; // Import UserProfile
+import { addUserToFirestore, getUserFromFirestore } from '@/lib/data'; // Import Firestore functions
+
+// Combine FirebaseUser with UserProfile
+export interface AppUser extends FirebaseUser {
+  profile?: UserProfile | null; // UserProfile can be null if not found or during loading
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<User | null>;
+  login: (email: string, pass: string) => Promise<AppUser | null>;
   logout: () => Promise<void>;
-  register: (email: string, pass: string) => Promise<User | null>; // Adicionado
+  register: (email: string, pass: string) => Promise<AppUser | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true); // Set loading true while fetching profile
       if (firebaseUser) {
-        setUser(firebaseUser);
+        const userProfile = await getUserFromFirestore(firebaseUser.uid);
+        setUser({ ...firebaseUser, profile: userProfile });
       } else {
         setUser(null);
       }
@@ -43,11 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string): Promise<User | null> => {
+  const login = async (email: string, password: string): Promise<AppUser | null> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setUser(userCredential.user);
-      return userCredential.user;
+      const firebaseUser = userCredential.user;
+      const userProfile = await getUserFromFirestore(firebaseUser.uid);
+      const appUser = { ...firebaseUser, profile: userProfile };
+      setUser(appUser); // onAuthStateChanged will also trigger, this provides immediate update
+      return appUser;
     } catch (error) {
       const authError = error as AuthError;
       console.error("Login error:", authError.message);
@@ -55,23 +67,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string): Promise<User | null> => {
+  const register = async (email: string, password: string): Promise<AppUser | null> => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // O onAuthStateChanged cuidará de setar o user globalmente.
-      // setUser(userCredential.user); // Não é estritamente necessário aqui devido ao listener
-      return userCredential.user;
+      const firebaseUser = userCredential.user;
+      
+      // Create a simple display name from email (part before @)
+      const displayName = email.split('@')[0] || 'Novo Usuário';
+      await addUserToFirestore(firebaseUser.uid, firebaseUser.email!, displayName);
+      
+      // Fetch the newly created profile
+      const userProfile = await getUserFromFirestore(firebaseUser.uid);
+      const appUser = { ...firebaseUser, profile: userProfile };
+      // onAuthStateChanged will also handle setting the user, but this ensures profile is available sooner
+      setUser(appUser);
+      return appUser;
     } catch (error) {
       const authError = error as AuthError;
       console.error("Registration error:", authError.code, authError.message);
-      throw authError; // Re-throw para ser pego na página de registro
+      throw authError; 
     }
   };
 
   const logout = async () => {
     try {
       await signOut(auth);
-      setUser(null);
+      setUser(null); // onAuthStateChanged will also set user to null
       router.push('/login');
     } catch (error) {
       console.error("Logout error:", error);
@@ -88,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     login,
     logout,
-    register, // Adicionado
+    register,
   };
 
   return (
