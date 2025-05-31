@@ -4,11 +4,12 @@
 import { revalidatePath } from "next/cache";
 import { 
   addSubmission as addSubmissionDb, 
-  getPartsAndServices, 
+  getPartsAndServices as getPartsAndServicesDb, 
   markSubmissionAsViewed as markSubmissionViewedDb, 
   addPartOrService as addPartOrServiceDb,
   updatePartOrService as updatePartOrServiceDb,
-  deletePartOrService as deletePartOrServiceDb
+  deletePartOrService as deletePartOrServiceDb,
+  getPartOrServiceById as getPartOrServiceByIdDb
 } from "@/lib/data";
 import type { PartOrService, SelectedItem, SubmissionType, PartOrServiceFormData, CheckinFormData, ChecklistItemValue, Submission } from "@/types";
 import { suggestRelatedParts as genAiSuggestRelatedParts } from "@/ai/flows/suggest-related-parts";
@@ -16,7 +17,7 @@ import type { SuggestRelatedPartsInput, SuggestRelatedPartsOutput } from "@/ai/f
 
 export interface SubmitJobArgs {
   mechanicId: string;
-  submissionType: Extract<SubmissionType, 'quote' | 'finished'>; // Ensure this is only for quote/finished
+  submissionType: Extract<SubmissionType, 'quote' | 'finished'>;
   selectedItemsData: { itemId: string; quantity: number }[];
   customerName?: string;
   vehicleInfo?: string;
@@ -30,14 +31,20 @@ export interface SubmitActionResult {
 }
 
 export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitActionResult> {
-  const allPartsAndServices = getPartsAndServices(); 
-  const selectedItems: SelectedItem[] = args.selectedItemsData
-    .map(data => {
-      const itemDetails = allPartsAndServices.find(ps => ps.id === data.itemId);
-      if (!itemDetails) return null;
-      return { item: itemDetails, quantity: data.quantity };
-    })
-    .filter(item => item !== null) as SelectedItem[];
+  const allPartsAndServices = await getPartsAndServicesDb(); // Async call now
+  const selectedItems: SelectedItem[] = (
+    await Promise.all(
+      args.selectedItemsData.map(async (data) => {
+        // It's better to fetch item details again from DB or use the already fetched list if sure it's fresh
+        const itemDetails = allPartsAndServices.find(ps => ps.id === data.itemId);
+        // If using Firestore, it might be safer to fetch each item by ID if there's a chance allPartsAndServices is stale
+        // const itemDetails = await getPartOrServiceByIdDb(data.itemId); 
+        if (!itemDetails) return null;
+        return { item: itemDetails, quantity: data.quantity };
+      })
+    )
+  ).filter(item => item !== null) as SelectedItem[];
+
 
   if (selectedItems.length === 0 && args.submissionType === 'finished') { 
     return { success: false, message: "Serviços finalizados devem conter ao menos um item." };
@@ -47,10 +54,11 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitAction
   }
 
   try {
+    // addSubmissionDb is still synchronous as it uses in-memory _submissions
     const submissionBaseData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'totalPrice' | 'items'> & { items: SelectedItem[] } = {
       mechanicId: args.mechanicId,
       type: args.submissionType,
-      items: selectedItems, // This makes 'items' non-optional for this specific call
+      items: selectedItems,
       customerName: args.customerName,
       vehicleInfo: args.vehicleInfo,
       notes: args.notes,
@@ -71,16 +79,15 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitAction
 
 
 export interface SubmitCheckinArgs extends CheckinFormData {
-  // CheckinFormData covers most fields like customerName, vehicleMake, etc.
   checklistItems: ChecklistItemValue[];
   photoDataUris: string[];
-  // We'll use a fixed mechanicId for tablet submissions e.g. 'tablet_user'
 }
 
 export async function submitCheckinAction(args: SubmitCheckinArgs): Promise<SubmitActionResult> {
   try {
+    // addSubmissionDb is still synchronous
     const submissionData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'totalPrice' | 'items'> = {
-        mechanicId: 'tablet_user', // Or fetch dynamically if needed
+        mechanicId: 'tablet_user',
         type: 'checkin',
         customerName: args.customerName,
         customerContact: args.customerContact,
@@ -92,13 +99,12 @@ export async function submitCheckinAction(args: SubmitCheckinArgs): Promise<Subm
         serviceRequestDetails: args.serviceRequestDetails,
         checklistItems: args.checklistItems,
         photoDataUris: args.photoDataUris,
-        // No items or totalPrice for checkin type
     };
 
     const newSubmission = addSubmissionDb(submissionData);
     
-    revalidatePath("/desktop", "layout"); // Update desktop dashboard
-    revalidatePath("/tablet", "layout"); // Could be useful if tablet has a history view later
+    revalidatePath("/desktop", "layout"); 
+    revalidatePath("/tablet", "layout"); 
     
     return { success: true, submissionId: newSubmission.id, message: "Check-in do veículo enviado com sucesso!" };
 
@@ -122,7 +128,7 @@ export async function getAiSuggestionsAction(
 
   try {
     const output: SuggestRelatedPartsOutput = await genAiSuggestRelatedParts(input);
-    const allPartsAndServicesData = getPartsAndServices(); 
+    const allPartsAndServicesData = await getPartsAndServicesDb(); // Async call
     
     const suggestions = output.suggestedPartsAndServices
       .map(name => allPartsAndServicesData.find(ps => ps.name === name))
@@ -135,6 +141,7 @@ export async function getAiSuggestionsAction(
   }
 }
 
+// markSubmissionViewedDb is still synchronous
 export async function markSubmissionAsViewedAction(submissionId: string) {
   try {
     markSubmissionViewedDb(submissionId);
@@ -150,7 +157,7 @@ export async function createPartOrServiceAction(
   data: PartOrServiceFormData
 ): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
   try {
-    const newItem = addPartOrServiceDb(data);
+    const newItem = await addPartOrServiceDb(data); // Async call
     revalidatePath("/desktop/inventory");
     revalidatePath("/mobile/new-submission"); 
     revalidatePath("/desktop/new-submission");
@@ -166,7 +173,7 @@ export async function updatePartOrServiceAction(
   data: PartOrServiceFormData
 ): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
   try {
-    const updatedItem = updatePartOrServiceDb(id, data);
+    const updatedItem = await updatePartOrServiceDb(id, data); // Async call
     if (!updatedItem) {
       return { success: false, message: "Item não encontrado para atualização." };
     }
@@ -184,7 +191,7 @@ export async function deletePartOrServiceAction(
   id: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const success = deletePartOrServiceDb(id);
+    const success = await deletePartOrServiceDb(id); // Async call
     if (!success) {
       return { success: false, message: "Item não encontrado para exclusão ou falha ao excluir." };
     }

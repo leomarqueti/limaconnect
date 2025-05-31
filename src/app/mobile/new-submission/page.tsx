@@ -29,6 +29,7 @@ export default function NewSubmissionPage() {
 
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [isFetchingSuggestions, startFetchingSuggestionsTransition] = useTransition();
+  const [isFetchingInventory, setIsFetchingInventory] = useState(true);
 
   const [allPartsAndServices, setAllPartsAndServices] = useState<PartOrService[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,22 +50,43 @@ export default function NewSubmissionPage() {
       router.replace('/mobile');
       return;
     }
-    setAllPartsAndServices(getPartsAndServices());
+
+    const fetchInventory = async () => {
+      setIsFetchingInventory(true);
+      try {
+        const parts = await getPartsAndServices();
+        setAllPartsAndServices(parts);
+      } catch (error) {
+        console.error("Failed to fetch inventory for mobile submission:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Carregar Itens",
+          description: "Não foi possível buscar o inventário.",
+        });
+        setAllPartsAndServices([]);
+      } finally {
+        setIsFetchingInventory(false);
+      }
+    };
+    fetchInventory();
   }, [submissionType, mechanicId, router, toast]);
 
   const selectedItemsArray = useMemo(() => Array.from(selectedItemsMap.values()), [selectedItemsMap]);
 
   useEffect(() => {
-    if (selectedItemsArray.length > 0) {
+    if (selectedItemsArray.length > 0 && allPartsAndServices.length > 0) { // Ensure allPartsAndServices is loaded
       startFetchingSuggestionsTransition(async () => {
         const currentSelectionNames = selectedItemsArray.map(si => si.item.name);
         const suggestions = await getAiSuggestionsAction(currentSelectionNames);
-        setAiSuggestions(suggestions.filter(sugg => !selectedItemsMap.has(sugg.id))); // Filter out already selected
+        // Filter out suggestions that are already selected or not in the current inventory (safety check)
+        setAiSuggestions(suggestions.filter(sugg => 
+          !selectedItemsMap.has(sugg.id) && allPartsAndServices.some(invItem => invItem.id === sugg.id)
+        ));
       });
     } else {
       setAiSuggestions([]);
     }
-  }, [selectedItemsMap, selectedItemsArray]);
+  }, [selectedItemsMap, selectedItemsArray, allPartsAndServices]);
 
 
   const filteredPartsAndServices = useMemo(() => {
@@ -78,12 +100,10 @@ export default function NewSubmissionPage() {
     setSelectedItemsMap(prevMap => {
       const newMap = new Map(prevMap);
       if (newMap.has(item.id)) {
-        // If already selected, deselect by removing it (quantity adjustment will also remove if <=0)
-        // newMap.delete(item.id);
+        // No change, quantity adjustment handles it
       } else {
         newMap.set(item.id, { item, quantity: 1 });
       }
-      // If an AI suggestion is clicked and it was selected, ensure it's removed from suggestions
       setAiSuggestions(prevSuggestions => prevSuggestions.filter(sugg => sugg.id !== item.id));
       return newMap;
     });
@@ -181,6 +201,15 @@ export default function NewSubmissionPage() {
       </div>
     );
   }
+
+  if (isFetchingInventory) {
+     return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Carregando itens...</p>
+      </div>
+    );
+  }
   
   return (
     <div className="container mx-auto p-4">
@@ -224,7 +253,7 @@ export default function NewSubmissionPage() {
                       item={item}
                       onSelect={() => handleSelectItem(item)}
                       isSelected={selectedItemsMap.has(item.id)}
-                      showPrice={false} // Preços ocultos para mecânicos
+                      showPrice={false} 
                     />
                   ))}
                 </div>
@@ -302,7 +331,7 @@ export default function NewSubmissionPage() {
           </div>
         </CardContent>
         <CardFooter className="flex justify-end pt-6 border-t">
-          <Button onClick={handleSubmit} disabled={isSubmitting || isFetchingSuggestions} size="lg" className="min-w-[150px]">
+          <Button onClick={handleSubmit} disabled={isSubmitting || isFetchingSuggestions || isFetchingInventory} size="lg" className="min-w-[150px]">
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {isSubmitting ? 'Enviando...' : 'Enviar Registro'}
           </Button>
@@ -311,5 +340,3 @@ export default function NewSubmissionPage() {
     </div>
   );
 }
-
-    

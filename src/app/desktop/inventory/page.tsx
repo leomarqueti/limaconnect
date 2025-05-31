@@ -49,11 +49,22 @@ export default function InventoryManagementPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const fetchItems = () => {
+  const fetchItems = async () => {
     setIsLoading(true);
-    const currentItems = getPartsAndServices();
-    setItems(currentItems);
-    setIsLoading(false);
+    try {
+      const currentItems = await getPartsAndServices();
+      setItems(currentItems);
+    } catch (error) {
+      console.error("Failed to fetch inventory items:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar inventário",
+        description: "Não foi possível buscar os itens do banco de dados.",
+      });
+      setItems([]); // Define como vazio em caso de erro
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -75,7 +86,7 @@ export default function InventoryManagementPage() {
         });
         setIsFormOpen(false);
         setEditingItem(null);
-        fetchItems(); // Re-fetch items to reflect changes
+        await fetchItems(); 
       } else {
         toast({
           variant: "destructive",
@@ -110,7 +121,7 @@ export default function InventoryManagementPage() {
           title: "Item Excluído!",
           description: `"${itemToDelete.name}" foi removido do inventário.`,
         });
-        fetchItems(); // Re-fetch items
+        await fetchItems(); 
       } else {
         toast({
           variant: "destructive",
@@ -145,7 +156,7 @@ export default function InventoryManagementPage() {
         </div>
         <Dialog open={isFormOpen} onOpenChange={(isOpen) => {
           setIsFormOpen(isOpen);
-          if (!isOpen) setEditingItem(null); // Reset editingItem when dialog closes
+          if (!isOpen) setEditingItem(null); 
         }}>
           <DialogTrigger asChild>
             <Button onClick={handleOpenNewDialog}>
@@ -164,7 +175,7 @@ export default function InventoryManagementPage() {
               initialData={editingItem || undefined}
               isSubmitting={isSubmitting}
               submitButtonText={editingItem ? "Salvar Alterações" : "Adicionar Item"}
-              key={editingItem ? editingItem.id : 'new'} // Add key to force re-render of form when editingItem changes
+              key={editingItem ? editingItem.id : 'new'} 
             />
           </DialogContent>
         </Dialog>

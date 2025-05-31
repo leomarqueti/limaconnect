@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { getPartsAndServices, getMechanicById } from '@/lib/data'; // Added getMechanicById
+import { getPartsAndServices, getMechanicById } from '@/lib/data'; 
 import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType, Mechanic } from '@/types';
 import { PartServiceCard } from '@/components/shared/PartServiceCard';
 import { Search, Plus, Minus, XCircle, ArrowLeft, Loader2, Lightbulb } from 'lucide-react';
@@ -26,10 +26,11 @@ export default function DesktopNewSubmissionPage() {
   const { toast } = useToast();
 
   const submissionType = searchParams.get('type') as SubmissionType | null;
-  const mechanicId = searchParams.get('mechanicId'); // This will be 'office_user' or similar
+  const mechanicId = searchParams.get('mechanicId'); 
 
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [isFetchingSuggestions, startFetchingSuggestionsTransition] = useTransition();
+  const [isFetchingInventory, setIsFetchingInventory] = useState(true);
   
   const [allPartsAndServices, setAllPartsAndServices] = useState<PartOrService[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,23 +53,44 @@ export default function DesktopNewSubmissionPage() {
       router.replace('/desktop');
       return;
     }
-    setAllPartsAndServices(getPartsAndServices());
-    setMechanicInfo(getMechanicById(mechanicId)); // Fetch mechanic info (e.g., 'Escritório')
+    
+    const fetchInitialData = async () => {
+      setIsFetchingInventory(true);
+      try {
+        const parts = await getPartsAndServices();
+        setAllPartsAndServices(parts);
+      } catch (error) {
+        console.error("Failed to fetch inventory for desktop submission:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Carregar Itens",
+          description: "Não foi possível buscar o inventário.",
+        });
+        setAllPartsAndServices([]);
+      } finally {
+        setIsFetchingInventory(false);
+      }
+    };
+
+    fetchInitialData();
+    setMechanicInfo(getMechanicById(mechanicId)); 
   }, [submissionType, mechanicId, router, toast]);
 
   const selectedItemsArray = useMemo(() => Array.from(selectedItemsMap.values()), [selectedItemsMap]);
 
    useEffect(() => {
-    if (selectedItemsArray.length > 0) {
+    if (selectedItemsArray.length > 0 && allPartsAndServices.length > 0) {
       startFetchingSuggestionsTransition(async () => {
         const currentSelectionNames = selectedItemsArray.map(si => si.item.name);
         const suggestions = await getAiSuggestionsAction(currentSelectionNames);
-        setAiSuggestions(suggestions.filter(sugg => !selectedItemsMap.has(sugg.id)));
+        setAiSuggestions(suggestions.filter(sugg => 
+            !selectedItemsMap.has(sugg.id) && allPartsAndServices.some(invItem => invItem.id === sugg.id)
+        ));
       });
     } else {
       setAiSuggestions([]);
     }
-  }, [selectedItemsMap, selectedItemsArray]);
+  }, [selectedItemsMap, selectedItemsArray, allPartsAndServices]);
 
   const filteredPartsAndServices = useMemo(() => {
     if (!searchTerm) return allPartsAndServices;
@@ -81,7 +103,6 @@ export default function DesktopNewSubmissionPage() {
     setSelectedItemsMap(prevMap => {
       const newMap = new Map(prevMap);
       if (newMap.has(item.id)) {
-        // newMap.delete(item.id); // Keep it simple, quantity change will handle removal
       } else {
         newMap.set(item.id, { item, quantity: 1 });
       }
@@ -190,6 +211,15 @@ export default function DesktopNewSubmissionPage() {
       </div>
     );
   }
+
+  if (isFetchingInventory) {
+     return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Carregando itens...</p>
+      </div>
+    );
+  }
   
   return (
     <div className="max-w-3xl mx-auto">
@@ -239,7 +269,7 @@ export default function DesktopNewSubmissionPage() {
                       item={item}
                       onSelect={() => handleSelectItem(item)}
                       isSelected={selectedItemsMap.has(item.id)}
-                      showPrice={true} // Preços visíveis para o escritório
+                      showPrice={true} 
                     />
                   ))}
                 </div>
@@ -322,7 +352,7 @@ export default function DesktopNewSubmissionPage() {
           </div>
         </CardContent>
         <CardFooter className="flex justify-end pt-6 border-t">
-          <Button onClick={handleSubmit} disabled={isSubmitting || isFetchingSuggestions} size="lg" className="min-w-[150px]">
+          <Button onClick={handleSubmit} disabled={isSubmitting || isFetchingSuggestions || isFetchingInventory} size="lg" className="min-w-[150px]">
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {isSubmitting ? 'Enviando...' : 'Enviar Registro'}
           </Button>
@@ -331,5 +361,3 @@ export default function DesktopNewSubmissionPage() {
     </div>
   );
 }
-
-    
