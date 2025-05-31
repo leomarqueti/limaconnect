@@ -6,13 +6,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Tag, User, Wrench, FileText, CheckCircle, AlertCircle, Eye, Car } from 'lucide-react'; // Added Car icon
+import { Clock, Tag, User, Wrench, FileText, CheckCircle, AlertCircle, Eye, Car, UserCircle as UserIcon } from 'lucide-react'; // Added Car icon and UserIcon
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface SubmissionCardProps {
   submission: Submission;
-  mechanic?: Mechanic;
+  mechanic?: Mechanic; // This might be undefined if submission.mechanicId is a UID not in the static list
 }
 
 export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
@@ -22,7 +22,7 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
   }`;
 
   let typeText = '';
-  let TypeIcon: React.ElementType = FileText; // Default icon
+  let TypeIcon: React.ElementType = FileText;
 
   switch (submission.type) {
     case 'quote':
@@ -35,31 +35,39 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
       break;
     case 'checkin':
       typeText = 'Check-in de Veículo';
-      TypeIcon = Car; // Using Car icon for check-in
+      TypeIcon = Car;
       break;
     default:
-      typeText = 'Registro'; // Fallback
+      typeText = 'Registro';
   }
   
   const statusText = isPending ? 'Pendente' : 'Visualizado';
   const StatusIcon = isPending ? AlertCircle : Eye;
   const statusVariant = isPending ? 'destructive' : 'default';
 
+  const submitterName = mechanic?.name || `Usuário ID: ${submission.mechanicId.substring(0, 8)}...`;
+  const submitterAvatarFallback = mechanic?.name ? mechanic.name.substring(0, 2).toUpperCase() : submission.mechanicId.substring(0,2).toUpperCase();
+  const submitterAiHint = mechanic?.aiHint || 'user icon';
 
   return (
     <Card className={cardClasses}>
       <CardHeader className="pb-3">
         <div className="flex items-center space-x-3 mb-3">
-          {mechanic && (
-            <Avatar className="h-10 w-10 border">
-              <AvatarImage src={mechanic.photoUrl} alt={mechanic.name} data-ai-hint={mechanic.aiHint} />
-              <AvatarFallback>{mechanic.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-          )}
+          <Avatar className="h-10 w-10 border">
+            {mechanic?.photoUrl ? (
+              <AvatarImage src={mechanic.photoUrl} alt={submitterName} data-ai-hint={submitterAiHint} />
+            ) : (
+              // Fallback icon if no photoUrl (e.g. for UIDs not in static list)
+              <UserIcon className="h-full w-full p-2 text-muted-foreground" /> 
+            )}
+            <AvatarFallback>{submitterAvatarFallback}</AvatarFallback>
+          </Avatar>
           <div>
-            <CardTitle className="text-lg font-semibold">{mechanic?.name || 'Sistema'}</CardTitle>
+            <CardTitle className="text-lg font-semibold">{submitterName}</CardTitle>
             <CardDescription className="text-xs">
-              {submission.type === 'checkin' ? `Registrado por: ${mechanic?.name || 'Recepção'}` : `ID Mecânico: ${submission.mechanicId}`}
+              {submission.type === 'checkin' && !mechanic ? `Registrado por: Recepção` : 
+               submission.type === 'checkin' && mechanic ? `Registrado por: ${mechanic.name}` :
+               `ID Usuário: ${submission.mechanicId.substring(0,12)}...`}
             </CardDescription>
           </div>
         </div>
@@ -89,14 +97,18 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
           <div className="flex items-center text-muted-foreground">
             <Wrench className="h-4 w-4 mr-2 text-primary" />
             Veículo: <span className="font-medium text-foreground ml-1">
-              {submission.type === 'checkin' ? `${submission.vehicleMake} ${submission.vehicleModel}` : submission.vehicleInfo}
+              {submission.type === 'checkin' ? `${submission.vehicleMake || ''} ${submission.vehicleModel || ''}`.trim() : submission.vehicleInfo}
               {submission.vehicleLicensePlate && ` (${submission.vehicleLicensePlate})`}
             </span>
           </div>
         )}
         <div className="flex items-center text-muted-foreground">
           <Clock className="h-4 w-4 mr-2 text-primary" />
-          Registrado: <span className="font-medium text-foreground ml-1">{format(new Date(submission.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+          Registrado: <span className="font-medium text-foreground ml-1">
+            {submission.timestamp && typeof submission.timestamp.getTime === 'function' && !isNaN(submission.timestamp.getTime())
+              ? format(submission.timestamp, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+              : 'Data indisponível'}
+          </span>
         </div>
         {submission.type !== 'checkin' && submission.totalPrice !== undefined && (
           <div className="flex items-center text-muted-foreground">

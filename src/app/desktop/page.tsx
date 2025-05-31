@@ -1,31 +1,78 @@
 
+"use client"; // Convert to Client Component
+
 import Link from 'next/link';
-import { getSubmissions, getMechanicById, getPartsAndServices } from '@/lib/data';
-import type { Submission, Mechanic, PartOrService } from '@/types';
+import { useEffect, useState } from 'react'; // For fetching data
+import { getSubmissions, getMechanicById } from '@/lib/data';
+import type { Submission, Mechanic } from '@/types';
 import { SubmissionCard } from '@/components/desktop/SubmissionCard';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ListChecks, PlusCircle } from 'lucide-react';
+import { ListChecks, PlusCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useToast } from '@/hooks/use-toast';
 
-// Assume a default mechanic for office submissions
-const OFFICE_MECHANIC_ID = 'office_user';
+export default function DesktopDashboardPage() {
+  const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [mechanicsMap, setMechanicsMap] = useState<Record<string, Mechanic | undefined>>({});
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
 
+  useEffect(() => {
+    async function fetchSubmissions() {
+      if (!authLoading && !user) {
+        // User not logged in, layout should handle redirect.
+        // Or we could push to login here as well.
+        setIsLoadingSubmissions(false);
+        return;
+      }
+      
+      if (user) { // Only fetch if user is available
+        setIsLoadingSubmissions(true);
+        try {
+          const fetchedSubmissions = await getSubmissions();
+          setSubmissions(fetchedSubmissions);
 
-export default async function DesktopDashboardPage() { // Made this an async function
-  const submissions = await getSubmissions(); // Await the promise
-  const mechanics = submissions.reduce((acc, sub) => {
-    if (!acc[sub.mechanicId]) {
-      // getMechanicById is synchronous as it reads from an in-memory array
-      acc[sub.mechanicId] = getMechanicById(sub.mechanicId);
+          // Pre-resolve mechanic details
+          const resolvedMechanics: Record<string, Mechanic | undefined> = {};
+          for (const sub of fetchedSubmissions) {
+            if (!resolvedMechanics[sub.mechanicId]) {
+              // getMechanicById is synchronous, but if it were async, we'd await it here.
+              // This part will mostly be undefined if mechanicId is a UID not in the static array.
+              resolvedMechanics[sub.mechanicId] = getMechanicById(sub.mechanicId);
+            }
+          }
+          setMechanicsMap(resolvedMechanics);
+        } catch (error) {
+          console.error("Failed to load submissions:", error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao Carregar Submissões",
+            description: "Não foi possível buscar os registros do banco de dados.",
+          });
+          setSubmissions([]);
+        } finally {
+          setIsLoadingSubmissions(false);
+        }
+      }
     }
-    return acc;
-  }, {} as Record<string, Mechanic | undefined>);
+    
+    if (!authLoading) { // Wait for auth state to be resolved
+      fetchSubmissions();
+    }
+  }, [user, authLoading, toast]);
 
-  // getPartsAndServices is now async as it reads from Firestore
-  // However, it's not directly used in the rendering logic of this page itself,
-  // but it's good practice to fetch it if it were needed for something here.
-  // For now, we'll comment it out if not immediately used to avoid an unnecessary async call here.
-  // const allPartsAndServices = await getPartsAndServices(); 
+  if (authLoading || (isLoadingSubmissions && user)) { // Show loader if auth is loading OR submissions are loading (and user is present)
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Carregando painel...</p>
+      </div>
+    );
+  }
+  
+  const officeUserId = user?.uid; // Get logged-in user's UID for new submissions from desktop
 
   return (
     <div className="space-y-8">
@@ -39,20 +86,20 @@ export default async function DesktopDashboardPage() { // Made this an async fun
           </p>
         </div>
         <div className="flex gap-2">
-          <Button asChild>
-            <Link href={`/desktop/new-submission?type=quote&mechanicId=${OFFICE_MECHANIC_ID}`}>
+          <Button asChild disabled={!officeUserId}>
+            <Link href={`/desktop/new-submission?type=quote&mechanicId=${officeUserId || 'unknown_user'}`}>
               <PlusCircle className="mr-2 h-4 w-4" /> Novo Orçamento
             </Link>
           </Button>
-          <Button asChild variant="secondary">
-            <Link href={`/desktop/new-submission?type=finished&mechanicId=${OFFICE_MECHANIC_ID}`}>
+          <Button asChild variant="secondary" disabled={!officeUserId}>
+            <Link href={`/desktop/new-submission?type=finished&mechanicId=${officeUserId || 'unknown_user'}`}>
               <PlusCircle className="mr-2 h-4 w-4" /> Novo Serviço
             </Link>
           </Button>
         </div>
       </div>
 
-      {submissions.length === 0 ? (
+      {submissions.length === 0 && !isLoadingSubmissions ? (
         <Alert>
           <ListChecks className="h-4 w-4" />
           <AlertTitle>Nenhuma Submissão</AlertTitle>
@@ -63,13 +110,12 @@ export default async function DesktopDashboardPage() { // Made this an async fun
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {submissions.map((submission) => {
-            // The mechanic object is already resolved from the reduce block above
-            const mechanic = mechanics[submission.mechanicId]; 
+            const mechanic = mechanicsMap[submission.mechanicId];
             return (
               <SubmissionCard
                 key={submission.id}
                 submission={submission}
-                mechanic={mechanic}
+                mechanic={mechanic} 
               />
             );
           })}
@@ -78,5 +124,3 @@ export default async function DesktopDashboardPage() { // Made this an async fun
     </div>
   );
 }
-
-    
