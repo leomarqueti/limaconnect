@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, type ChangeEvent } from "react";
@@ -182,7 +181,7 @@ export function PartServiceForm({
           </FormControl>
           {imagePreview && (
             <div className="mt-4 relative w-32 h-32 border rounded-md overflow-hidden bg-muted">
-              <Image src={imagePreview} alt="Pré-visualização" layout="fill" objectFit="cover" />
+              <Image src={imagePreview} alt="Pré-visualização" fill className="object-cover" />
             </div>
           )}
           {!imagePreview && (
@@ -220,5 +219,3 @@ export function PartServiceForm({
     </Form>
   );
 }
-
-    

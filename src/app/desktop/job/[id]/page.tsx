@@ -355,7 +355,7 @@ export default function SubmissionDetailPage() {
                         <TableRow key={item.id}>
                           <TableCell className="hidden sm:table-cell p-2 print:hidden">
                             <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted">
-                              <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} sizes="50px" />
+                              <Image src={item.imageUrl} alt={item.name} fill className="object-cover" data-ai-hint={item.aiHint} sizes="50px" />
                             </div>
                           </TableCell>
                           <TableCell>
@@ -477,4 +477,3 @@ export default function SubmissionDetailPage() {
     </div>
   );
 }
-
