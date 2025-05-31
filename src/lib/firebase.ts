@@ -1,10 +1,9 @@
 
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
-import { getAnalytics, type Analytics } from "firebase/analytics"; // Adicionada importação e tipo para Analytics
-// import { getAuth, type Auth } from "firebase/auth"; // Para autenticação futura
+import { getAuth, type Auth } from "firebase/auth"; // Garantir que Auth está aqui
+import { getAnalytics, type Analytics } from "firebase/analytics";
 
-// Configuração do Firebase fornecida pelo usuário
 const firebaseConfig = {
   apiKey: "AIzaSyAg7M7Cus5vv3uBm8NedoXKZ8_YyhhXRY4",
   authDomain: "limaconnect-df2c1.firebaseapp.com",
@@ -17,23 +16,24 @@ const firebaseConfig = {
 
 let app: FirebaseApp;
 let db: Firestore;
+let auth: Auth; // Definido
 let analytics: Analytics | undefined;
-// let auth: Auth; // Para autenticação futura
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
-  // Inicializar Analytics apenas se estiver no navegador
   if (typeof window !== 'undefined') {
-    analytics = getAnalytics(app);
+    // Inicializar Analytics apenas no cliente
+    try {
+      analytics = getAnalytics(app);
+    } catch (e) {
+      console.error("Error initializing Firebase Analytics on new app instance:", e);
+    }
   }
 } else {
   app = getApps()[0];
-  // Se o app já existe, o analytics também pode já ter sido inicializado
-  // Para garantir que temos a instância, podemos tentar obtê-la novamente (se não existir)
   if (typeof window !== 'undefined') {
+    // Tentar obter Analytics se o app já existe (pode já ter sido inicializado)
     try {
-        // Tenta obter a instância existente ou criar uma nova se necessário.
-        // A SDK do Firebase é geralmente inteligente o suficiente para não reinicializar desnecessariamente.
         analytics = getAnalytics(app);
     } catch (e) {
         console.error("Error initializing Firebase Analytics for existing app instance:", e);
@@ -42,6 +42,6 @@ if (getApps().length === 0) {
 }
 
 db = getFirestore(app);
-// auth = getAuth(app); // Para autenticação futura
+auth = getAuth(app); // Inicializado aqui
 
-export { db, app, analytics /*, auth */ }; // Exporta 'app' e 'analytics' também, caso sejam necessários
+export { db, auth, app, analytics }; // Exportar auth, app e analytics
