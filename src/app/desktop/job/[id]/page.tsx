@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton'; // For loading state
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge'; // Added import for Badge
 
 export default function SubmissionDetailPage() {
   const params = useParams();
@@ -209,7 +210,7 @@ export default function SubmissionDetailPage() {
                       <TableRow key={item.id}>
                         <TableCell className="hidden sm:table-cell p-2">
                            <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted">
-                            <Image src={item.imageUrl} alt={item.name} layout="fill" objectFit="cover" data-ai-hint={item.aiHint} />
+                            <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} />
                            </div>
                         </TableCell>
                         <TableCell>
@@ -239,3 +240,5 @@ export default function SubmissionDetailPage() {
     </div>
   );
 }
+
+    
