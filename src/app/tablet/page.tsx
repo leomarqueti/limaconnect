@@ -1,17 +1,17 @@
 
 "use client";
 
-import { useState, useTransition } from 'react';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { useState, useTransition, useEffect, useRef } from 'react'; // Added useEffect, useRef
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/ui/label'; // Keep if used outside RHF, otherwise FormLabel is preferred
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"; // Added FormDescription
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -41,6 +41,7 @@ export default function TabletCheckinPage() {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoDataUris, setPhotoDataUris] = useState<string[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItemValue[]>(initialChecklistItems);
+  const photoInputRef = useRef<HTMLInputElement>(null); // Ref for file input
 
   const form = useForm<CheckinFormData>({
     resolver: zodResolver(checkinFormSchema),
@@ -56,36 +57,66 @@ export default function TabletCheckinPage() {
     },
   });
 
-  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Clean up preview URLs when component unmounts or previews change
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [photoPreviews]);
+
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
+    if (files && files.length > 0) {
       const currentPreviews = [...photoPreviews];
       const currentDataUris = [...photoDataUris];
+      
+      const newLocalPreviews: string[] = [];
+      const newDataUrisPromises: Promise<string>[] = [];
 
       Array.from(files).forEach(file => {
-        currentPreviews.push(URL.createObjectURL(file));
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === 'string') {
-            currentDataUris.push(reader.result);
-            // Ensure state updates after all files are processed if doing one by one
-            // For simplicity, updating after loop, might need adjustment for many files
-          }
-        };
-        reader.readAsDataURL(file);
+        newLocalPreviews.push(URL.createObjectURL(file));
+        newDataUrisPromises.push(
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === 'string') {
+                resolve(reader.result);
+              } else {
+                reject(new Error('Falha ao ler o arquivo como Data URI.'));
+              }
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(file);
+          })
+        );
       });
-      // This might need to be more sophisticated if many files are uploaded at once due to async nature
-      // For now, assuming a small number of files or a slight delay is acceptable.
-      // A better way is to update state after each file is read.
-      // To keep it simple here, we'll update after loop, but be aware:
-      setTimeout(() => { // Using timeout to give FileReader time
-        setPhotoPreviews(currentPreviews);
-        setPhotoDataUris(currentDataUris);
-      }, 100 * files.length); 
+
+      setPhotoPreviews(prev => [...prev, ...newLocalPreviews]);
+
+      try {
+        const resolvedNewDataUris = await Promise.all(newDataUrisPromises);
+        setPhotoDataUris(prev => [...prev, ...resolvedNewDataUris]);
+      } catch (error) {
+        console.error("Erro ao ler arquivos para Data URI:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Carregar Imagem",
+          description: "Uma ou mais imagens não puderam ser carregadas. Por favor, tente novamente.",
+        });
+        // Optionally, remove previews if their corresponding data URI failed.
+        // This could be complex to map back, so for now, we'll leave previews as is.
+      }
+    }
+     // Reset file input to allow re-selection of the same file(s)
+    if (photoInputRef.current) {
+      photoInputRef.current.value = "";
     }
   };
 
+
   const removePhoto = (index: number) => {
+    // Revoke the object URL for the preview being removed
+    URL.revokeObjectURL(photoPreviews[index]);
     setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
     setPhotoDataUris(prev => prev.filter((_, i) => i !== index));
   };
@@ -113,9 +144,12 @@ export default function TabletCheckinPage() {
           description: "Os dados do veículo e cliente foram enviados para o escritório.",
         });
         form.reset();
-        setPhotoPreviews([]);
+        setPhotoPreviews([]); // Old previews are revoked by useEffect cleanup
         setPhotoDataUris([]);
-        setChecklist(initialChecklistItems);
+        setChecklist(JSON.parse(JSON.stringify(initialChecklistItems))); // Deep copy to reset checklist
+        if (photoInputRef.current) { // Clear file input
+            photoInputRef.current.value = "";
+        }
         // router.push('/'); // Or a success page for tablet? For now, just reset.
       } else {
         toast({
@@ -128,7 +162,7 @@ export default function TabletCheckinPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto pb-8"> {/* Added pb-8 for spacing */}
       <Card className="shadow-xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold font-headline flex items-center">
@@ -142,7 +176,6 @@ export default function TabletCheckinPage() {
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-8">
               
-              {/* Customer Information */}
               <section className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center"><UserCircle className="mr-2 h-5 w-5 text-primary" />Informações do Cliente</h3>
                 <FormField
@@ -171,13 +204,12 @@ export default function TabletCheckinPage() {
 
               <Separator />
 
-              {/* Vehicle Information */}
               <section className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center"><Car className="mr-2 h-5 w-5 text-primary" />Informações do Veículo</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="vehicleMake" render={({ field }) => ( <FormItem><FormLabel>Marca</FormLabel><FormControl><Input placeholder="Ex: Volkswagen" {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="vehicleModel" render={({ field }) => ( <FormItem><FormLabel>Modelo</FormLabel><FormControl><Input placeholder="Ex: Gol" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  <FormField control={form.control} name="vehicleYear" render={({ field }) => ( <FormItem><FormLabel>Ano</FormLabel><FormControl><Input type="text" placeholder="Ex: 2015" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="vehicleYear" render={({ field }) => ( <FormItem><FormLabel>Ano</FormLabel><FormControl><Input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="Ex: 2015" {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="vehicleLicensePlate" render={({ field }) => ( <FormItem><FormLabel>Placa</FormLabel><FormControl><Input placeholder="Ex: BRA2E19" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
                 <FormField control={form.control} name="vehicleVIN" render={({ field }) => ( <FormItem><FormLabel>Chassi (VIN)</FormLabel><FormControl><Input placeholder="17 caracteres" {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -185,7 +217,6 @@ export default function TabletCheckinPage() {
 
               <Separator />
               
-              {/* Service Request */}
               <section className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center"><ClipboardList className="mr-2 h-5 w-5 text-primary" />Solicitação de Serviço / Problema</h3>
                 <FormField
@@ -203,18 +234,17 @@ export default function TabletCheckinPage() {
 
               <Separator />
 
-              {/* Checklist Section */}
               <section className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center"><ClipboardList className="mr-2 h-5 w-5 text-primary" />Checklist de Entrada</h3>
                 {checklist.map((item, index) => (
-                  <Card key={item.id} className="p-4 bg-muted/30">
+                  <Card key={item.id} className="p-4 bg-muted/30 shadow-sm">
                     <FormLabel htmlFor={item.id} className="font-medium">{item.label}</FormLabel>
                     {item.type === 'text' && (
                       <Input
                         id={item.id}
                         value={item.value as string}
                         onChange={(e) => handleChecklistItemChange(index, 'value', e.target.value)}
-                        placeholder={item.notes}
+                        placeholder={item.notes || `Detalhes sobre ${item.label.toLowerCase()}`}
                         className="mt-1"
                       />
                     )}
@@ -223,44 +253,53 @@ export default function TabletCheckinPage() {
                         id={item.id}
                         value={item.value as string}
                         onChange={(e) => handleChecklistItemChange(index, 'value', e.target.value)}
-                        placeholder={item.notes}
+                        placeholder={item.notes || `Observações detalhadas sobre ${item.label.toLowerCase()}`}
                         className="mt-1"
                         rows={3}
                       />
                     )}
                     {item.type === 'boolean' && (
-                      <div className="flex items-center space-x-2 mt-2">
+                      <div className="flex items-center space-x-3 mt-2 py-2">
                         <Checkbox
                           id={item.id}
                           checked={item.value as boolean}
                           onCheckedChange={(checked) => handleChecklistItemChange(index, 'value', !!checked)}
                         />
-                        <label htmlFor={item.id} className="text-sm text-muted-foreground">
-                          {item.value ? "Sim" : "Não"} {item.notes && `(${item.notes})`}
+                        <label htmlFor={item.id} className="text-sm text-muted-foreground cursor-pointer select-none">
+                          {item.label} {item.value ? "(Sim)" : "(Não)"}
                         </label>
                       </div>
                     )}
-                     { (item.type === 'boolean' && item.value === true && (item.id === 'exterior_lights' || item.id === 'dashboard_warnings')) || item.id === 'tire_condition' ? (
+                     { (item.type === 'boolean' && item.value === true && (item.id === 'exterior_lights' || item.id === 'dashboard_warnings')) || 
+                       (item.id === 'tire_condition' && (item.value as string)?.toLowerCase() !== 'bom' && item.value !== '') ||
+                       (item.id === 'exterior_damage_notes' || item.id === 'interior_condition_notes' ) // Keep notes field always visible for textarea type
+                     ? (
                         <Input
-                          id={`${item.id}_notes`}
+                          id={`${item.id}_notes_detail`} // Changed id to avoid conflict with main input/checkbox
                           value={checklist[index].notes || ''}
                           onChange={(e) => handleChecklistItemChange(index, 'notes', e.target.value)}
-                          placeholder={`Detalhes para ${item.label.toLowerCase()}...`}
+                          placeholder={`Observações para ${item.label.toLowerCase()}...`}
                           className="mt-2 text-sm"
                         />
+                    ) : (item.type === 'boolean' && item.notes) ? ( // Show notes if boolean but no specific condition met but notes field is not empty (e.g. manually set for other booleans)
+                       <p className="text-xs text-muted-foreground mt-1"><em>Obs: {item.notes}</em></p>
                     ) : null}
+
+                    {item.type !== 'textarea' && item.type !== 'text' && item.notes && !( (item.type === 'boolean' && item.value === true && (item.id === 'exterior_lights' || item.id === 'dashboard_warnings')) || (item.id === 'tire_condition' && (item.value as string)?.toLowerCase() !== 'bom' && item.value !== '') ) && (
+                        <p className="text-xs text-muted-foreground mt-1"><em>Guia: {item.notes}</em></p>
+                    )}
                   </Card>
                 ))}
               </section>
 
               <Separator />
 
-              {/* Photo Upload Section */}
               <section className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center"><Camera className="mr-2 h-5 w-5 text-primary" />Fotos do Veículo</h3>
                 <FormField
                   name="photos" // Not directly used by RHF schema, but good for context
-                  render={() => (
+                  control={form.control} // Added control for RHF context
+                  render={() => ( // Used render prop
                     <FormItem>
                       <FormLabel htmlFor="photo-upload" className="sr-only">Upload de fotos</FormLabel>
                       <FormControl>
@@ -270,40 +309,48 @@ export default function TabletCheckinPage() {
                           accept="image/*" 
                           multiple 
                           onChange={handlePhotoChange}
-                          className="cursor-pointer"
+                          ref={photoInputRef} // Assign ref
+                          className="block w-full text-sm text-slate-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-full file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-primary/10 file:text-primary
+                            hover:file:bg-primary/20
+                            cursor-pointer"
                         />
                       </FormControl>
-                      <FormDescription>
-                        Selecione uma ou mais fotos do veículo (arranhões, painel, etc.).
+                      <FormDescription className="mt-1">
+                        Selecione uma ou mais fotos do veículo (arranhões, painel, etc.). Máximo 5MB por foto.
                       </FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
                 {photoPreviews.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
                     {photoPreviews.map((previewUrl, index) => (
-                      <div key={index} className="relative group aspect-square">
-                        <Image src={previewUrl} alt={`Preview ${index + 1}`} fill className="rounded-md object-cover border" />
+                      <div key={index} className="relative group aspect-video sm:aspect-square"> {/* Changed to aspect-video for wider tablet view */}
+                        <Image src={previewUrl} alt={`Preview ${index + 1}`} fill className="rounded-md object-contain border bg-muted" /> {/* Changed to object-contain */}
                         <Button
                           type="button"
                           variant="destructive"
                           size="icon"
-                          className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                           onClick={() => removePhoto(index)}
+                          aria-label="Remover foto"
                         >
                           <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Remover foto</span>
                         </Button>
                       </div>
                     ))}
                   </div>
                 )}
                  {photoPreviews.length === 0 && (
-                    <Alert variant="default" className="mt-2">
+                    <Alert variant="default" className="mt-4">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Nenhuma Foto Adicionada</AlertTitle>
                         <AlertDescription>
-                        Considere adicionar fotos para documentar o estado do veículo na entrada.
+                        Considere adicionar fotos para documentar o estado do veículo na entrada. Clique no botão acima para selecionar.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -321,3 +368,4 @@ export default function TabletCheckinPage() {
     </div>
   );
 }
+
