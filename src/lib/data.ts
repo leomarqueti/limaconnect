@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, getDoc, Timestamp, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, getDoc, Timestamp, setDoc, where } from 'firebase/firestore'; // Added where
 import type { PartOrService, Mechanic, Submission, PartOrServiceFormData, SelectedItem, UserProfile } from '@/types';
 
 // Adicionando um mecânico/usuário para o escritório e para o tablet
@@ -32,6 +32,11 @@ function safeTimestampToDate(firestoreTimestamp: any): Date {
       if (!isNaN(d.getTime())) return d;
     } catch (e) { /* ignore parsing errors */ }
   }
+  // Se tudo falhar, retorna a data atual ou uma data padrão de erro,
+  // mas para 'timestamp' de submissão, uma data padrão pode ser enganosa.
+  // Considerar lançar um erro ou retornar undefined se a conversão falhar e for crítico.
+  // Por ora, retorna a data atual como fallback, mas logue um aviso se isso acontecer.
+  console.warn("safeTimestampToDate: Could not parse timestamp, returning current date as fallback.", firestoreTimestamp);
   return new Date(); 
 }
 
@@ -143,26 +148,32 @@ export async function updateUserProfileInFirestore(uid: string, data: { displayN
   }
   
   if (Object.keys(updateData).length === 0) {
-    // No actual data to update, maybe just return or throw a specific error
     return; 
   }
 
-  updateData.updatedAt = serverTimestamp(); // Track updates
+  updateData.updatedAt = serverTimestamp(); 
   await updateDoc(userRef, updateData);
 }
 
 
 export function getMechanics(): Mechanic[] {
-  return mechanics; // This is the static list, will be superseded or augmented by Firestore users
+  return mechanics; 
 }
 
 export function getMechanicById(id: string): Mechanic | undefined {
-  // This still uses the static list. Future enhancement: check Firestore users too.
   return mechanics.find(m => m.id === id);
 }
 
 export async function getSubmissions(): Promise<Submission[]> {
-  const q = query(submissionsCollection, orderBy('timestamp', 'desc'));
+  // Busca submissões não arquivadas ou onde o campo isArchived não existe (para compatibilidade)
+  // Idealmente, todas as novas submissões terão isArchived: false
+  // Para ser mais explícito e funcional com Firestore, que não tem "OR" direto em campos diferentes,
+  // precisaremos de duas queries ou tratar no lado do cliente se quisermos "isArchived não existe OU isArchived == false".
+  // A maneira mais simples com Firestore é assumir que novas submissões terão isArchived: false e só buscar essas.
+  // Se você tem dados antigos sem isArchived, eles não aparecerão.
+  // Uma solução mais robusta para dados antigos seria um script de migração para adicionar isArchived: false a eles.
+  // Por agora, vamos focar em buscar `isArchived == false`.
+  const q = query(submissionsCollection, where("isArchived", "==", false), orderBy('timestamp', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => {
     const data = doc.data();
@@ -172,6 +183,7 @@ export async function getSubmissions(): Promise<Submission[]> {
       type: data.type || 'quote',
       timestamp: safeTimestampToDate(data.timestamp),
       status: data.status || 'pending',
+      isArchived: data.isArchived === true, // Garante que seja booleano, default false
       items: Array.isArray(data.items) ? data.items : (data.type !== 'checkin' ? [] : undefined),
       totalPrice: typeof data.totalPrice === 'number' ? data.totalPrice : (data.type !== 'checkin' ? 0 : undefined),
       customerName: data.customerName || undefined, 
@@ -206,6 +218,7 @@ export async function getSubmissionById(id: string): Promise<Submission | undefi
         type: data.type || 'quote',
         timestamp: safeTimestampToDate(data.timestamp),
         status: data.status || 'pending',
+        isArchived: data.isArchived === true, // Garante que seja booleano, default false
         items: Array.isArray(data.items) ? data.items : (data.type !== 'checkin' ? [] : undefined),
         totalPrice: typeof data.totalPrice === 'number' ? data.totalPrice : (data.type !== 'checkin' ? 0 : undefined),
         customerName: data.customerName || undefined,
@@ -231,7 +244,7 @@ export async function getSubmissionById(id: string): Promise<Submission | undefi
   }
 }
 
-export async function addSubmission(submissionData: Omit<Submission, 'id' | 'timestamp' | 'status'>): Promise<Submission> {
+export async function addSubmission(submissionData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'isArchived'>): Promise<Submission> {
   let totalPrice = 0;
   if (submissionData.type === 'quote' || submissionData.type === 'finished') {
     totalPrice = (submissionData.items || []).reduce((acc, curr) => {
@@ -242,10 +255,11 @@ export async function addSubmission(submissionData: Omit<Submission, 'id' | 'tim
   }
 
   const dataToSave: any = {
-    mechanicId: submissionData.mechanicId, // This will be the Firebase UID
+    mechanicId: submissionData.mechanicId, 
     type: submissionData.type,
     timestamp: serverTimestamp(), 
     status: 'pending',
+    isArchived: false, // Default to false for new submissions
     customerName: submissionData.customerName || null, 
     vehicleInfo: submissionData.vehicleInfo || null,
     notes: submissionData.notes || null,
@@ -273,6 +287,7 @@ export async function addSubmission(submissionData: Omit<Submission, 'id' | 'tim
     ...submissionData, 
     timestamp: new Date(), 
     status: 'pending',
+    isArchived: false,
     totalPrice: (submissionData.type === 'quote' || submissionData.type === 'finished') ? totalPrice : undefined,
   } as Submission;
 }

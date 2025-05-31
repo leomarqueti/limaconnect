@@ -45,6 +45,7 @@ export interface Submission {
   type: SubmissionType;
   timestamp: Date;
   status: 'pending' | 'viewed'; // For desktop notifications
+  isArchived?: boolean; // Added for archiving functionality
 
   // Fields for 'quote' and 'finished' types
   items?: SelectedItem[];

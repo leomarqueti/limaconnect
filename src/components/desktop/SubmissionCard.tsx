@@ -1,7 +1,6 @@
 
 import Link from 'next/link';
-import Image from 'next/image';
-import type { Submission, UserProfile } from '@/types'; // Changed Mechanic to UserProfile
+import type { Submission, UserProfile } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,7 +11,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface SubmissionCardProps {
   submission: Submission;
-  submitterProfile?: UserProfile; // Changed from mechanic?: Mechanic
+  submitterProfile?: UserProfile;
 }
 
 export function SubmissionCard({ submission, submitterProfile }: SubmissionCardProps) {
@@ -45,43 +44,47 @@ export function SubmissionCard({ submission, submitterProfile }: SubmissionCardP
   const StatusIcon = isPending ? AlertCircle : Eye;
   const statusVariant = isPending ? 'destructive' : 'default';
 
-  const submitterDisplayName = submitterProfile?.displayName || `Usuário ID: ${submission.mechanicId.substring(0, 8)}...`;
-  const submitterAvatarFallback = submitterProfile?.displayName 
-    ? submitterProfile.displayName.substring(0, 2).toUpperCase() 
-    : submission.mechanicId.substring(0,2).toUpperCase();
-  const avatarAiHint = submitterProfile?.displayName ? "user profile" : "user icon";
-
-
-  let cardTitle = submitterDisplayName;
-  let cardDescription = `ID Usuário: ${submission.mechanicId.substring(0,12)}...`;
+  let cardTitleText = `Usuário ID: ${submission.mechanicId.substring(0, 8)}...`;
+  let cardDescriptionText = `ID Usuário: ${submission.mechanicId}`;
+  let avatarSrc: string | undefined = undefined;
+  let avatarFallbackText = submission.mechanicId.substring(0,2).toUpperCase();
+  let avatarAiHintText = "user icon";
 
   if (submission.mechanicId === 'office_user') {
-    cardTitle = "Escritório Lima Connect";
-    cardDescription = "Registro via Painel Desktop";
+    cardTitleText = "Escritório Lima Connect";
+    cardDescriptionText = "Registro via Painel Desktop";
+    avatarSrc = 'https://placehold.co/40x40.png?text=LC'; 
+    avatarFallbackText = 'LC';
+    avatarAiHintText = 'office building';
   } else if (submission.mechanicId === 'tablet_user') {
-    cardTitle = "Recepção / Check-in";
-    cardDescription = "Registro via Tablet";
+    cardTitleText = "Recepção / Check-in";
+    cardDescriptionText = "Registro via Tablet";
+    avatarSrc = 'https://placehold.co/40x40.png?text=TB';
+    avatarFallbackText = 'TB';
+    avatarAiHintText = 'tablet device';
   } else if (submitterProfile) {
-     cardTitle = submitterProfile.displayName;
-     cardDescription = submitterProfile.email || `ID: ${submission.mechanicId.substring(0,12)}...`;
+     cardTitleText = submitterProfile.displayName || cardTitleText;
+     cardDescriptionText = submitterProfile.email || `ID: ${submission.mechanicId}`;
+     avatarSrc = submitterProfile.photoURL;
+     avatarFallbackText = (submitterProfile.displayName || submission.mechanicId).substring(0, 2).toUpperCase();
+     avatarAiHintText = submitterProfile.photoURL ? "user profile" : "avatar placeholder";
   }
-
 
   return (
     <Card className={cardClasses}>
       <CardHeader className="pb-3">
         <div className="flex items-center space-x-3 mb-3">
-          <Avatar className="h-10 w-10 border">
-            {submitterProfile?.photoURL ? (
-              <AvatarImage src={submitterProfile.photoURL} alt={submitterDisplayName} data-ai-hint={avatarAiHint} />
+          <Avatar className="h-12 w-12 border">
+            {avatarSrc ? (
+              <AvatarImage src={avatarSrc} alt={cardTitleText} data-ai-hint={avatarAiHintText} />
             ) : (
-              <UserIcon className="h-full w-full p-2 text-muted-foreground" /> 
+              <UserIcon className="h-full w-full p-2.5 text-muted-foreground" />
             )}
-            <AvatarFallback>{submitterAvatarFallback}</AvatarFallback>
+            <AvatarFallback>{avatarFallbackText}</AvatarFallback>
           </Avatar>
           <div>
-            <CardTitle className="text-lg font-semibold">{cardTitle}</CardTitle>
-            <CardDescription className="text-xs">{cardDescription}</CardDescription>
+            <CardTitle className="text-lg font-semibold">{cardTitleText}</CardTitle>
+            <CardDescription className="text-xs">{cardDescriptionText}</CardDescription>
           </div>
         </div>
         <div className="flex justify-between items-center">
@@ -135,7 +138,7 @@ export function SubmissionCard({ submission, submitterProfile }: SubmissionCardP
             {
               (submission.type === 'checkin' ? submission.serviceRequestDetails : submission.notes)?.substring(0, 70)
             }
-            {(submission.type === 'checkin' ? submission.serviceRequestDetails : submission.notes)?.length || 0 > 70 ? '...' : ''}
+            {((submission.type === 'checkin' ? submission.serviceRequestDetails : submission.notes)?.length || 0) > 70 ? '...' : ''}
           </p>
         )}
       </CardContent>
