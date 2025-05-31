@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Tag, User, Wrench, FileText, CheckCircle, AlertCircle, Eye } from 'lucide-react';
+import { Clock, Tag, User, Wrench, FileText, CheckCircle, AlertCircle, Eye, Car } from 'lucide-react'; // Added Car icon
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -21,8 +21,25 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
     isPending ? 'border-primary shadow-primary/20 animate-pulse-border' : 'border-border'
   }`;
 
-  const typeText = submission.type === 'quote' ? 'Orçamento' : 'Serviço Finalizado';
-  const TypeIcon = submission.type === 'quote' ? FileText : CheckCircle;
+  let typeText = '';
+  let TypeIcon: React.ElementType = FileText; // Default icon
+
+  switch (submission.type) {
+    case 'quote':
+      typeText = 'Orçamento';
+      TypeIcon = FileText;
+      break;
+    case 'finished':
+      typeText = 'Serviço Finalizado';
+      TypeIcon = CheckCircle;
+      break;
+    case 'checkin':
+      typeText = 'Check-in de Veículo';
+      TypeIcon = Car; // Using Car icon for check-in
+      break;
+    default:
+      typeText = 'Registro'; // Fallback
+  }
   
   const statusText = isPending ? 'Pendente' : 'Visualizado';
   const StatusIcon = isPending ? AlertCircle : Eye;
@@ -40,13 +57,19 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
             </Avatar>
           )}
           <div>
-            <CardTitle className="text-lg font-semibold">{mechanic?.name || 'Mecânico Desconhecido'}</CardTitle>
-            <CardDescription className="text-xs">ID: {submission.mechanicId}</CardDescription>
+            <CardTitle className="text-lg font-semibold">{mechanic?.name || 'Sistema'}</CardTitle>
+            <CardDescription className="text-xs">
+              {submission.type === 'checkin' ? `Registrado por: ${mechanic?.name || 'Recepção'}` : `ID Mecânico: ${submission.mechanicId}`}
+            </CardDescription>
           </div>
         </div>
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 text-sm">
-                <TypeIcon className={`h-5 w-5 ${submission.type === 'quote' ? 'text-blue-500' : 'text-green-500'}`} />
+                <TypeIcon className={`h-5 w-5 ${
+                  submission.type === 'quote' ? 'text-blue-500' : 
+                  submission.type === 'finished' ? 'text-green-500' : 
+                  submission.type === 'checkin' ? 'text-purple-500' : 'text-gray-500'
+                }`} />
                 <span className="font-medium">{typeText}</span>
             </div>
             <Badge variant={statusVariant} className="text-xs">
@@ -62,23 +85,32 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
             Cliente: <span className="font-medium text-foreground ml-1">{submission.customerName}</span>
           </div>
         )}
-        {submission.vehicleInfo && (
+        {(submission.vehicleInfo || (submission.vehicleMake && submission.vehicleModel)) && (
           <div className="flex items-center text-muted-foreground">
             <Wrench className="h-4 w-4 mr-2 text-primary" />
-            Veículo: <span className="font-medium text-foreground ml-1">{submission.vehicleInfo}</span>
+            Veículo: <span className="font-medium text-foreground ml-1">
+              {submission.type === 'checkin' ? `${submission.vehicleMake} ${submission.vehicleModel}` : submission.vehicleInfo}
+              {submission.vehicleLicensePlate && ` (${submission.vehicleLicensePlate})`}
+            </span>
           </div>
         )}
         <div className="flex items-center text-muted-foreground">
           <Clock className="h-4 w-4 mr-2 text-primary" />
-          Enviado: <span className="font-medium text-foreground ml-1">{format(new Date(submission.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+          Registrado: <span className="font-medium text-foreground ml-1">{format(new Date(submission.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
         </div>
-        <div className="flex items-center text-muted-foreground">
-          <Tag className="h-4 w-4 mr-2 text-primary" />
-          Total: <span className="font-bold text-lg text-foreground ml-1">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span>
-        </div>
-         {submission.notes && (
+        {submission.type !== 'checkin' && submission.totalPrice !== undefined && (
+          <div className="flex items-center text-muted-foreground">
+            <Tag className="h-4 w-4 mr-2 text-primary" />
+            Total: <span className="font-bold text-lg text-foreground ml-1">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span>
+          </div>
+        )}
+         {(submission.notes || submission.serviceRequestDetails) && (
           <p className="text-xs text-muted-foreground pt-1 border-t border-dashed mt-2">
-            <strong>Obs:</strong> {submission.notes.length > 50 ? `${submission.notes.substring(0, 50)}...` : submission.notes}
+            <strong>{submission.type === 'checkin' ? 'Solicitação:' : 'Obs:'}</strong> 
+            {
+              (submission.type === 'checkin' ? submission.serviceRequestDetails : submission.notes)?.substring(0, 70)
+            }
+            {(submission.type === 'checkin' ? submission.serviceRequestDetails : submission.notes)?.length || 0 > 70 ? '...' : ''}
           </p>
         )}
       </CardContent>

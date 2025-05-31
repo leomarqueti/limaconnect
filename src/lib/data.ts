@@ -1,11 +1,12 @@
 
-import type { PartOrService, Mechanic, Submission, SubmissionType, SelectedItem, PartOrServiceFormData } from '@/types';
+import type { PartOrService, Mechanic, Submission, SubmissionType, SelectedItem, PartOrServiceFormData, ChecklistItemValue } from '@/types';
 
-// Adicionando um mecânico/usuário para o escritório
+// Adicionando um mecânico/usuário para o escritório e para o tablet
 export const mechanics: Mechanic[] = [
   { id: 'mech1', name: 'Carlos Silva', photoUrl: 'https://placehold.co/40x40.png?text=CS', aiHint: 'man portrait' },
   { id: 'mech2', name: 'João Ferreira', photoUrl: 'https://placehold.co/40x40.png?text=JF', aiHint: 'person face' },
   { id: 'office_user', name: 'Escritório AutoService', photoUrl: 'https://placehold.co/40x40.png?text=AS', aiHint: 'office building' },
+  { id: 'tablet_user', name: 'Recepção/Check-in', photoUrl: 'https://placehold.co/40x40.png?text=TB', aiHint: 'tablet device' },
 ];
 
 export let partsAndServices: PartOrService[] = [
@@ -64,11 +65,11 @@ let _submissions: Submission[] = [
     mechanicId: 'office_user',
     type: 'quote',
     items: [
-      { item: partsAndServices.find(p=>p.id==='ps5')!, quantity: 2 }, // Pastilha de Freio (par) x2 = 4 pastilhas
-      { item: partsAndServices.find(p=>p.id==='ps13')!, quantity: 1 }, // Fluido de Freio
-      { item: partsAndServices.find(p=>p.id==='ps14')!, quantity: 1 }, // Serviço: Troca de Fluido
+      { item: partsAndServices.find(p=>p.id==='ps5')!, quantity: 2 }, 
+      { item: partsAndServices.find(p=>p.id==='ps13')!, quantity: 1 }, 
+      { item: partsAndServices.find(p=>p.id==='ps14')!, quantity: 1 }, 
     ],
-    timestamp: new Date(Date.now() - 3600000 * 5), // 5 hours ago
+    timestamp: new Date(Date.now() - 3600000 * 5), 
     status: 'viewed',
     totalPrice: (120*2) + 35 + 90,
     customerName: 'Ana Costa',
@@ -141,27 +142,22 @@ export function getSubmissionById(id: string): Submission | undefined {
   return _submissions.find(s => s.id === id);
 }
 
-export function addSubmission(
-  mechanicId: string, 
-  type: SubmissionType, 
-  items: SelectedItem[],
-  customerName?: string,
-  vehicleInfo?: string,
-  notes?: string
-): Submission {
+// This function now handles all submission types
+export function addSubmission(submissionData: Omit<Submission, 'id' | 'timestamp' | 'status'>): Submission {
   const newId = `sub${_submissions.length + 1}_${Date.now()}`; 
-  const totalPrice = items.reduce((acc, curr) => acc + curr.item.price * curr.quantity, 0);
+  
+  let totalPrice = 0;
+  if (submissionData.type === 'quote' || submissionData.type === 'finished') {
+    totalPrice = (submissionData.items || []).reduce((acc, curr) => acc + curr.item.price * curr.quantity, 0);
+  }
+
   const newSubmission: Submission = {
+    ...submissionData,
     id: newId,
-    mechanicId,
-    type,
-    items,
     timestamp: new Date(),
-    status: 'pending', // New submissions are always pending
-    totalPrice,
-    customerName,
-    vehicleInfo,
-    notes,
+    status: 'pending', 
+    totalPrice: submissionData.type !== 'checkin' ? totalPrice : undefined, // No total price for check-ins
+    items: submissionData.type !== 'checkin' ? submissionData.items : undefined, // No items for check-ins directly
   };
   _submissions.unshift(newSubmission); 
   return newSubmission;
@@ -170,8 +166,6 @@ export function addSubmission(
 export function markSubmissionAsViewed(id: string): void {
   const submissionIndex = _submissions.findIndex(s => s.id === id);
   if (submissionIndex > -1) {
-    // Create a new object for the updated submission to help with React's change detection
     _submissions[submissionIndex] = { ..._submissions[submissionIndex], status: 'viewed' };
   }
 }
-

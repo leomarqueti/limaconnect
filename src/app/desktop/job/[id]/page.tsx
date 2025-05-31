@@ -7,13 +7,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getSubmissionById, getMechanicById } from '@/lib/data';
 import { markSubmissionAsViewedAction } from '@/lib/actions';
-import type { Submission, Mechanic, SelectedItem } from '@/types';
+import type { Submission, Mechanic, SelectedItem, ChecklistItemValue } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, User, Wrench, Clock, Tag, MessageSquare, FileText, CheckCircle, ShoppingCart, Package, Printer } from 'lucide-react';
+import { ArrowLeft, User, Wrench, Clock, Tag, MessageSquare, FileText, CheckCircle, ShoppingCart, Package, Printer, Car as CarIcon, ClipboardList, Camera } from 'lucide-react'; // Added CarIcon, ClipboardList, Camera
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton'; 
@@ -41,6 +41,9 @@ export default function SubmissionDetailPage() {
             setMechanic(getMechanicById(sub.mechanicId));
             if (sub.status === 'pending') {
               await markSubmissionAsViewedAction(id);
+              // Manually update local state if needed or rely on revalidation,
+              // for immediate visual feedback:
+              setSubmission(s => s ? {...s, status: 'viewed'} : null);
             }
           } else {
             setSubmission(null); 
@@ -115,8 +118,24 @@ export default function SubmissionDetailPage() {
   }
 
   const mechanicName = mechanic?.name || `Usuário ID: ${submission.mechanicId}`;
-  const TypeIcon = submission.type === 'quote' ? FileText : CheckCircle;
-  const typeText = submission.type === 'quote' ? 'Orçamento Detalhado' : 'Serviço Finalizado Detalhado';
+  let TypeIcon = FileText;
+  let typeText = "Detalhes do Registro";
+  let typeColor = "text-gray-600";
+
+  if (submission.type === 'quote') {
+    TypeIcon = FileText;
+    typeText = 'Orçamento Detalhado';
+    typeColor = 'text-blue-600';
+  } else if (submission.type === 'finished') {
+    TypeIcon = CheckCircle;
+    typeText = 'Serviço Finalizado Detalhado';
+    typeColor = 'text-green-600';
+  } else if (submission.type === 'checkin') {
+    TypeIcon = CarIcon;
+    typeText = 'Detalhes do Check-in do Veículo';
+    typeColor = 'text-purple-600';
+  }
+
 
   return (
     <div className="max-w-4xl mx-auto print:max-w-full print:mx-0">
@@ -146,13 +165,13 @@ export default function SubmissionDetailPage() {
                     <div>
                         <CardTitle className="text-2xl font-bold text-foreground">{typeText}</CardTitle>
                         <CardDescription className="text-sm">
-                        Enviado por: <span className="font-medium">{mechanicName}</span>
+                        Registrado por: <span className="font-medium">{mechanicName}</span>
                         </CardDescription>
                     </div>
                 </div>
                  <div className="flex items-center gap-2 text-sm text-muted-foreground self-start sm:self-center">
-                    <TypeIcon className={`h-5 w-5 ${submission.type === 'quote' ? 'text-blue-600' : 'text-green-600'}`} />
-                    <span>{submission.type === 'quote' ? 'Orçamento' : 'Serviço Finalizado'}</span>
+                    <TypeIcon className={`h-5 w-5 ${typeColor}`} />
+                    <span className="capitalize">{submission.type}</span>
                 </div>
             </div>
         </CardHeader>
@@ -167,12 +186,27 @@ export default function SubmissionDetailPage() {
                 </div>
               </div>
             )}
-            {submission.vehicleInfo && (
+             {submission.customerContact && (
+              <div className="flex items-start">
+                <MessageSquare className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" /> {/* Using MessageSquare for contact */}
+                <div>
+                  <span className="font-medium text-muted-foreground">Contato:</span>
+                  <p className="text-foreground">{submission.customerContact}</p>
+                </div>
+              </div>
+            )}
+            {(submission.vehicleInfo || (submission.vehicleMake && submission.vehicleModel)) && (
               <div className="flex items-start">
                 <Wrench className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" />
                 <div>
                   <span className="font-medium text-muted-foreground">Veículo:</span>
-                  <p className="text-foreground">{submission.vehicleInfo}</p>
+                  <p className="text-foreground">
+                    {submission.type === 'checkin' 
+                      ? `${submission.vehicleMake || ''} ${submission.vehicleModel || ''} ${submission.vehicleYear || ''}`.trim()
+                      : submission.vehicleInfo}
+                  </p>
+                  {submission.vehicleLicensePlate && <p className="text-foreground">Placa: {submission.vehicleLicensePlate}</p>}
+                  {submission.vehicleVIN && <p className="text-xs text-muted-foreground">Chassi: {submission.vehicleVIN}</p>}
                 </div>
               </div>
             )}
@@ -183,69 +217,120 @@ export default function SubmissionDetailPage() {
                 <p className="text-foreground">{format(new Date(submission.timestamp), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}</p>
               </div>
             </div>
-             <div className="flex items-start">
-              <Tag className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" />
-              <div>
-                <span className="font-medium text-muted-foreground">Valor Total:</span>
-                <p className="text-2xl font-bold text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</p>
+             {submission.type !== 'checkin' && submission.totalPrice !== undefined && (
+              <div className="flex items-start">
+                <Tag className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" />
+                <div>
+                  <span className="font-medium text-muted-foreground">Valor Total:</span>
+                  <p className="text-2xl font-bold text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {submission.notes && (
+          {submission.type === 'checkin' && submission.serviceRequestDetails && (
+             <div>
+              <h3 className="text-md font-semibold mb-2 flex items-center"><ClipboardList className="h-5 w-5 mr-2 text-primary" /> Solicitação do Cliente / Problema Relatado</h3>
+              <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md whitespace-pre-wrap">{submission.serviceRequestDetails}</p>
+            </div>
+          )}
+
+          {submission.type !== 'checkin' && submission.notes && (
             <div>
               <h3 className="text-md font-semibold mb-2 flex items-center"><MessageSquare className="h-5 w-5 mr-2 text-primary" /> Observações Adicionais</h3>
               <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md whitespace-pre-wrap">{submission.notes}</p>
             </div>
           )}
           
-          <Separator />
-
-          <div>
-            <h3 className="text-md font-semibold mb-3 flex items-center"><ShoppingCart className="h-5 w-5 mr-2 text-primary" /> Itens Registrados</h3>
-            {submission.items.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden print:border print:table-border">
-                <Table>
-                  <TableHeader className="print:bg-muted/20">
-                    <TableRow>
-                      <TableHead className="w-[60px] hidden sm:table-cell print:hidden"></TableHead>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="text-center">Qtd.</TableHead>
-                      <TableHead className="text-right">Preço Unit.</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {submission.items.map(({ item, quantity }) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="hidden sm:table-cell p-2 print:hidden">
-                           <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted">
-                            <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} />
-                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="font-medium">{item.name}</p>
-                          <Badge variant={item.type === 'part' ? 'secondary' : 'outline'} className="mt-1 text-xs print:border-none print:px-0 print:py-0 print:bg-transparent print:text-muted-foreground">
-                            {item.type === 'part' ? <Package className="h-3 w-3 mr-1 print:hidden" /> : <Wrench className="h-3 w-3 mr-1 print:hidden" />}
-                            {item.type === 'part' ? 'Peça' : 'Serviço'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">{quantity}</TableCell>
-                        <TableCell className="text-right">R$ {item.price.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">R$ {(item.price * quantity).toFixed(2)}</TableCell>
+          {(submission.type === 'quote' || submission.type === 'finished') && submission.items && submission.items.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-md font-semibold mb-3 flex items-center"><ShoppingCart className="h-5 w-5 mr-2 text-primary" /> Itens Registrados</h3>
+                <div className="border rounded-lg overflow-hidden print:border print:table-border">
+                  <Table>
+                    <TableHeader className="print:bg-muted/20">
+                      <TableRow>
+                        <TableHead className="w-[60px] hidden sm:table-cell print:hidden"></TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-center">Qtd.</TableHead>
+                        <TableHead className="text-right">Preço Unit.</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {submission.items.map(({ item, quantity }) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="hidden sm:table-cell p-2 print:hidden">
+                            <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted">
+                              <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium">{item.name}</p>
+                            <Badge variant={item.type === 'part' ? 'secondary' : 'outline'} className="mt-1 text-xs print:border-none print:px-0 print:py-0 print:bg-transparent print:text-muted-foreground">
+                              {item.type === 'part' ? <Package className="h-3 w-3 mr-1 print:hidden" /> : <Wrench className="h-3 w-3 mr-1 print:hidden" />}
+                              {item.type === 'part' ? 'Peça' : 'Serviço'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">{quantity}</TableCell>
+                          <TableCell className="text-right">R$ {item.price.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-medium">R$ {(item.price * quantity).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma peça ou serviço adicionado a esta submissão.</p>
-            )}
-          </div>
+            </>
+          )}
+
+          {submission.type === 'checkin' && submission.checklistItems && submission.checklistItems.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-md font-semibold mb-3 flex items-center"><ClipboardList className="h-5 w-5 mr-2 text-primary" /> Checklist de Entrada do Veículo</h3>
+                <div className="space-y-3">
+                  {submission.checklistItems.map(item => (
+                    <Card key={item.id} className="p-3 bg-muted/30">
+                      <p className="font-medium text-sm">{item.label}</p>
+                      <p className="text-sm text-foreground">
+                        {typeof item.value === 'boolean' ? (item.value ? 'Sim' : 'Não') : item.value}
+                      </p>
+                      {item.notes && <p className="text-xs text-muted-foreground mt-1"><em>Obs: {item.notes}</em></p>}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+          
+          {submission.type === 'checkin' && submission.photoDataUris && submission.photoDataUris.length > 0 && (
+             <>
+              <Separator />
+              <div>
+                <h3 className="text-md font-semibold mb-3 flex items-center"><Camera className="h-5 w-5 mr-2 text-primary" /> Fotos do Veículo (Check-in)</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {submission.photoDataUris.map((dataUri, index) => (
+                    <div key={index} className="relative aspect-video rounded-md overflow-hidden border">
+                       <Image src={dataUri} alt={`Foto do veículo ${index + 1}`} fill objectFit="contain" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+
         </CardContent>
         <CardFooter className="bg-card-foreground/5 p-6 flex justify-end print:bg-transparent print:justify-between">
-            <p className="text-xs text-muted-foreground print:block hidden">AutoService Link - {submission.type === 'quote' ? 'Orçamento' : 'Serviço'} #{submission.id.substring(0,8)}</p>
-            <p className="text-lg font-bold">Total Geral: <span className="text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span></p>
+            <p className="text-xs text-muted-foreground print:block hidden">AutoService Link - {submission.type} #{submission.id.substring(0,8)}</p>
+            {submission.type !== 'checkin' && submission.totalPrice !== undefined && (
+              <p className="text-lg font-bold">Total Geral: <span className="text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span></p>
+            )}
+             {submission.type === 'checkin' && (
+              <p className="text-sm text-muted-foreground">Check-in realizado em {format(new Date(submission.timestamp), "dd/MM/yyyy", { locale: ptBR })}</p>
+            )}
         </CardFooter>
       </Card>
 
@@ -254,7 +339,7 @@ export default function SubmissionDetailPage() {
           body {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            color-scheme: light !important; /* Forçar esquema de cores claro para impressão */
+            color-scheme: light !important; 
           }
           .print\\:hidden { display: none !important; }
           .print\\:block { display: block !important; }
@@ -271,36 +356,31 @@ export default function SubmissionDetailPage() {
           .print\\:justify-between { justify-content: space-between !important; }
           .print\\:text-black { color: black !important; }
           .print\\:bg-muted\\/20 { background-color: hsl(var(--muted) / 0.2) !important; }
-          .print\\:border { border: 1px solid #e5e7eb !important; } /* Cor de borda genérica para impressão */
-
-
-          /* Estilos específicos para a tabela na impressão */
+          .print\\:border { border: 1px solid #e5e7eb !important; }
           .print\\:table-border table, 
           .print\\:table-border th, 
           .print\\:table-border td {
-            border: 1px solid #ddd !important; /* Cor de borda mais visível */
-            padding: 8px !important; /* Adiciona padding para melhor leitura */
-            color: black !important; /* Garante texto preto */
+            border: 1px solid #ddd !important; 
+            padding: 8px !important; 
+            color: black !important; 
           }
           .print\\:table-border th {
-            background-color: #f2f2f2 !important; /* Fundo leve para cabeçalhos */
+            background-color: #f2f2f2 !important; 
             font-weight: bold;
           }
           .print\\:table-border td p, .print\\:table-border td span {
              color: black !important;
           }
           .print\\:table-border .text-primary {
-            color: hsl(var(--primary)) !important; /* Manter cor primária se desejado, ou mudar para preto */
+            color: hsl(var(--primary)) !important;
           }
-           /* Esconde elementos que não fazem sentido na impressão */
-          .print\\:hidden {
-            display: none !important;
+          img { /* Ensure images are constrained in print */
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important; /* Use contain for print to see whole image */
           }
         }
       `}</style>
     </div>
   );
 }
-    
-    
-      

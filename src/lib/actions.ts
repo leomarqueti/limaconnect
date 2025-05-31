@@ -3,34 +3,34 @@
 
 import { revalidatePath } from "next/cache";
 import { 
-  addSubmission, 
+  addSubmission as addSubmissionDb, 
   getPartsAndServices, 
   markSubmissionAsViewed as markSubmissionViewedDb, 
   addPartOrService as addPartOrServiceDb,
   updatePartOrService as updatePartOrServiceDb,
   deletePartOrService as deletePartOrServiceDb
 } from "@/lib/data";
-import type { PartOrService, SelectedItem, SubmissionType, PartOrServiceFormData } from "@/types";
+import type { PartOrService, SelectedItem, SubmissionType, PartOrServiceFormData, CheckinFormData, ChecklistItemValue, Submission } from "@/types";
 import { suggestRelatedParts as genAiSuggestRelatedParts } from "@/ai/flows/suggest-related-parts";
 import type { SuggestRelatedPartsInput, SuggestRelatedPartsOutput } from "@/ai/flows/suggest-related-parts";
 
 export interface SubmitJobArgs {
   mechanicId: string;
-  submissionType: SubmissionType;
+  submissionType: Extract<SubmissionType, 'quote' | 'finished'>; // Ensure this is only for quote/finished
   selectedItemsData: { itemId: string; quantity: number }[];
   customerName?: string;
   vehicleInfo?: string;
   notes?: string;
 }
 
-export interface SubmitJobResult {
+export interface SubmitActionResult {
   success: boolean;
   message?: string;
   submissionId?: string;
 }
 
-export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitJobResult> {
-  const allPartsAndServices = getPartsAndServices(); // Fetch current list
+export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitActionResult> {
+  const allPartsAndServices = getPartsAndServices(); 
   const selectedItems: SelectedItem[] = args.selectedItemsData
     .map(data => {
       const itemDetails = allPartsAndServices.find(ps => ps.id === data.itemId);
@@ -47,14 +47,16 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitJobRes
   }
 
   try {
-    const newSubmission = addSubmission(
-      args.mechanicId, 
-      args.submissionType, 
-      selectedItems,
-      args.customerName,
-      args.vehicleInfo,
-      args.notes
-    );
+    const submissionBaseData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'totalPrice' | 'items'> & { items: SelectedItem[] } = {
+      mechanicId: args.mechanicId,
+      type: args.submissionType,
+      items: selectedItems, // This makes 'items' non-optional for this specific call
+      customerName: args.customerName,
+      vehicleInfo: args.vehicleInfo,
+      notes: args.notes,
+    };
+
+    const newSubmission = addSubmissionDb(submissionBaseData as Omit<Submission, 'id' | 'timestamp' | 'status'>);
     
     revalidatePath("/desktop", "layout"); 
     revalidatePath("/mobile", "layout"); 
@@ -66,6 +68,46 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitJobRes
     return { success: false, message: "Falha ao enviar o registro. Tente novamente." };
   }
 }
+
+
+export interface SubmitCheckinArgs extends CheckinFormData {
+  // CheckinFormData covers most fields like customerName, vehicleMake, etc.
+  checklistItems: ChecklistItemValue[];
+  photoDataUris: string[];
+  // We'll use a fixed mechanicId for tablet submissions e.g. 'tablet_user'
+}
+
+export async function submitCheckinAction(args: SubmitCheckinArgs): Promise<SubmitActionResult> {
+  try {
+    const submissionData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'totalPrice' | 'items'> = {
+        mechanicId: 'tablet_user', // Or fetch dynamically if needed
+        type: 'checkin',
+        customerName: args.customerName,
+        customerContact: args.customerContact,
+        vehicleMake: args.vehicleMake,
+        vehicleModel: args.vehicleModel,
+        vehicleYear: args.vehicleYear,
+        vehicleLicensePlate: args.vehicleLicensePlate,
+        vehicleVIN: args.vehicleVIN,
+        serviceRequestDetails: args.serviceRequestDetails,
+        checklistItems: args.checklistItems,
+        photoDataUris: args.photoDataUris,
+        // No items or totalPrice for checkin type
+    };
+
+    const newSubmission = addSubmissionDb(submissionData);
+    
+    revalidatePath("/desktop", "layout"); // Update desktop dashboard
+    revalidatePath("/tablet", "layout"); // Could be useful if tablet has a history view later
+    
+    return { success: true, submissionId: newSubmission.id, message: "Check-in do veículo enviado com sucesso!" };
+
+  } catch (error) {
+    console.error("Failed to submit vehicle check-in:", error);
+    return { success: false, message: "Falha ao enviar o check-in. Tente novamente." };
+  }
+}
+
 
 export async function getAiSuggestionsAction(
   currentSelectionNames: string[]
@@ -80,7 +122,7 @@ export async function getAiSuggestionsAction(
 
   try {
     const output: SuggestRelatedPartsOutput = await genAiSuggestRelatedParts(input);
-    const allPartsAndServicesData = getPartsAndServices(); // Fetch current list
+    const allPartsAndServicesData = getPartsAndServices(); 
     
     const suggestions = output.suggestedPartsAndServices
       .map(name => allPartsAndServicesData.find(ps => ps.name === name))
