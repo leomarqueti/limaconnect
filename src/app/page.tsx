@@ -1,7 +1,8 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Smartphone, Monitor } from 'lucide-react';
+import { Smartphone, Monitor, Tablet } from 'lucide-react'; // Adicionado Tablet icon
 import { AppHeader } from '@/components/shared/AppHeader';
 
 export default function HomePage() {
@@ -15,7 +16,7 @@ export default function HomePage() {
             Selecione a interface que deseja acessar:
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl"> {/* Ajustado para 3 colunas e max-w-4xl */}
           <Card className="shadow-lg hover:shadow-xl transition-shadow">
             <CardHeader className="items-center">
               <Smartphone className="w-12 h-12 text-primary mb-2" />
@@ -37,6 +38,18 @@ export default function HomePage() {
             <CardContent className="flex justify-center">
               <Button asChild size="lg">
                 <Link href="/desktop">Acessar Desktop</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <CardHeader className="items-center">
+              <Tablet className="w-12 h-12 text-primary mb-2" />
+              <CardTitle className="font-headline">Interface Tablet</CardTitle>
+              <CardDescription>Para check-in de veículos na recepção.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <Button asChild size="lg">
+                <Link href="/tablet">Acessar Tablet</Link>
               </Button>
             </CardContent>
           </Card>
