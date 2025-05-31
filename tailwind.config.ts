@@ -90,19 +90,19 @@ export default {
         },
         'pulse-border-animation': {
           '0%, 100%': {
-            borderColor: 'hsl(var(--primary) / 0.6)', // Aumenta a opacidade da borda inicial/final
-            boxShadow: '0 0 0 0 hsl(var(--primary) / 0.3)', // Brilho inicial suave
+            borderColor: 'hsl(0 80% 60% / 0.6)', // Vermelho para borda (início/fim)
+            boxShadow: '0 0 0 0 hsl(0 80% 50% / 0.3)', // Brilho vermelho suave
           },
           '50%': {
-            borderColor: 'hsl(var(--primary))', // Cor primária sólida no pico
-            boxShadow: '0 0 12px 5px hsl(var(--primary) / 0.6)', // Brilho mais intenso e espalhado
+            borderColor: 'hsl(0 80% 50%)', // Vermelho sólido para borda (pico)
+            boxShadow: '0 0 12px 5px hsl(0 80% 50% / 0.7)', // Brilho vermelho mais intenso
           },
         },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'pulse-border': 'pulse-border-animation 1.8s infinite ease-in-out', // Animação um pouco mais rápida
+        'pulse-border': 'pulse-border-animation 1.8s infinite ease-in-out',
       },
     },
   },
