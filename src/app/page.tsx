@@ -11,7 +11,7 @@ export default function HomePage() {
       <AppHeader />
       <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center justify-center">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 font-headline">Bem-vindo ao AutoService Link</h1>
+          <h1 className="text-4xl font-bold mb-4 font-headline">Bem-vindo ao Lima Connect</h1>
           <p className="text-lg text-muted-foreground">
             Selecione a interface que deseja acessar:
           </p>
@@ -57,7 +57,7 @@ export default function HomePage() {
       </main>
       <footer className="text-center py-4 border-t">
         <p className="text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} AutoService Link. Todos os direitos reservados.
+          &copy; {new Date().getFullYear()} Lima Connect. Todos os direitos reservados.
         </p>
       </footer>
     </div>

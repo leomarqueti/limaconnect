@@ -14,7 +14,7 @@ export default function DesktopLayout({
       </main>
       <footer className="text-center py-4 border-t bg-background">
         <p className="text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} AutoService Link - Painel Desktop
+          &copy; {new Date().getFullYear()} Lima Connect - Painel Desktop
         </p>
       </footer>
     </div>

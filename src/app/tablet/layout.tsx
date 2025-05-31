@@ -14,7 +14,7 @@ export default function TabletLayout({
       </main>
       <footer className="text-center py-4 border-t bg-background">
         <p className="text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} AutoService Link - Interface de Check-in Tablet
+          &copy; {new Date().getFullYear()} Lima Connect - Interface de Check-in Tablet
         </p>
       </footer>
     </div>

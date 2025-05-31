@@ -9,77 +9,80 @@ body {
 
 @layer base {
   :root {
-    --background: 207 27% 95%; /* #F0F4F7 Light Gray */
-    --foreground: 222 47% 11%; /* Darker color for text, e.g., a dark slate blue */
+    /* Light Theme Fallback - Adjusted for Lima Connect Accent */
+    --background: 0 0% 98%; /* 거의 흰색 */
+    --foreground: 240 10% 3.9%; /* 매우 어두운 파란색/검은색 */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 217 89% 61%; /* #4285F4 Saturated Blue */
-    --primary-foreground: 210 40% 98%; /* Light color for text on primary */
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 38 100% 50%; /* #FFA000 Yellow-Orange */
-    --accent-foreground: 30 90% 10%; /* Dark brown for text on accent */
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 90 65% 45%; /* Lime Green - немного приглушенный для светлого фона */
+    --primary-foreground: 0 0% 100%; /* Белый текст на лаймовом зеленом */
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 90 60% 55%; /* Яркий лаймовый для акцентов */
+    --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 217 89% 61%; /* Primary color for rings */
-    --chart-1: 12 76% 61%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 90 65% 45%; /* Lime Green for rings */
+    --chart-1: 90 70% 50%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
 
-    /* Sidebar specific colors - can be same as main or adjusted if sidebar has distinct theme */
-    --sidebar-background: 207 27% 92%; /* Slightly darker than main background */
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 217 89% 61%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 38 100% 50%;
-    --sidebar-accent-foreground: 30 90% 10%;
-    --sidebar-border: 207 20% 85%;
-    --sidebar-ring: 217 89% 61%;
+    /* Sidebar specific colors - Light Theme */
+    --sidebar-background: 0 0% 95%; 
+    --sidebar-foreground: 240 10% 3.9%;
+    --sidebar-primary: 90 65% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 90 60% 55%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 90 65% 45%;
   }
-  .dark {
-    --background: 222 47% 11%; /* Dark slate blue */
-    --foreground: 210 40% 98%; /* Light gray for text */
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 89% 61%; /* #4285F4 Saturated Blue */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 38 100% 50%; /* #FFA000 Yellow-Orange */
-    --accent-foreground: 30 90% 10%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 217 32.6% 17.5%;
-    --input: 217 32.6% 17.5%;
-    --ring: 217 89% 61%; /* Primary color for rings */
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
 
-    /* Sidebar specific colors - dark theme */
-    --sidebar-background: 222 47% 9%; /* Even darker for sidebar */
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 89% 61%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 38 100% 50%;
-    --sidebar-accent-foreground: 30 90% 10%;
-    --sidebar-border: 217 32.6% 15%;
-    --sidebar-ring: 217 89% 61%;
+  .dark {
+    /* Lima Connect Dark Theme */
+    --background: 240 5% 8%; /* Очень темный серый, почти черный */
+    --foreground: 90 50% 90%; /* Очень светлый лайм / почти белый */
+    --card: 240 5% 12%; /* Немного светлее фона */
+    --card-foreground: 90 50% 90%;
+    --popover: 240 5% 10%;
+    --popover-foreground: 90 50% 90%;
+    --primary: 90 70% 50%; /* Лаймовый зеленый */
+    --primary-foreground: 90 100% 10%; /* Темно-зеленый/черный текст на лаймовых кнопках */
+    --secondary: 240 5% 18%;
+    --secondary-foreground: 90 50% 90%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 90 60% 40%; /* Более темный лайм или связанный зеленый */
+    --accent-foreground: 90 50% 95%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 90 70% 50%; /* Лаймовый зеленый для фокусных колец */
+    --chart-1: 90 70% 50%;
+    --chart-2: 100 60% 45%;
+    --chart-3: 80 80% 55%;
+    --chart-4: 110 65% 60%;
+    --chart-5: 70 75% 55%;
+
+    /* Sidebar specific colors - Dark Theme */
+    --sidebar-background: 240 5% 6%; /* Еще темнее для боковой панели */
+    --sidebar-foreground: 90 50% 90%;
+    --sidebar-primary: 90 70% 50%;
+    --sidebar-primary-foreground: 90 100% 10%;
+    --sidebar-accent: 90 60% 40%;
+    --sidebar-accent-foreground: 90 50% 95%;
+    --sidebar-border: 240 5% 15%;
+    --sidebar-ring: 90 70% 50%;
   }
 }
 

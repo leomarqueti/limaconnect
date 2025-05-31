@@ -120,20 +120,20 @@ export default function SubmissionDetailPage() {
   const mechanicName = mechanic?.name || `Usuário ID: ${submission.mechanicId}`;
   let TypeIcon = FileText;
   let typeText = "Detalhes do Registro";
-  let typeColor = "text-gray-600";
+  let typeColor = "text-gray-600"; // This will be overridden by primary color in dark theme generally
 
   if (submission.type === 'quote') {
     TypeIcon = FileText;
     typeText = 'Orçamento Detalhado';
-    typeColor = 'text-blue-600';
+    typeColor = 'text-primary'; // Use primary for themed color
   } else if (submission.type === 'finished') {
     TypeIcon = CheckCircle;
     typeText = 'Serviço Finalizado Detalhado';
-    typeColor = 'text-green-600';
+    typeColor = 'text-primary'; // Use primary
   } else if (submission.type === 'checkin') {
     TypeIcon = CarIcon;
     typeText = 'Detalhes do Check-in do Veículo';
-    typeColor = 'text-purple-600';
+    typeColor = 'text-primary'; // Use primary
   }
 
 
@@ -170,7 +170,7 @@ export default function SubmissionDetailPage() {
                     </div>
                 </div>
                  <div className="flex items-center gap-2 text-sm text-muted-foreground self-start sm:self-center">
-                    <TypeIcon className={`h-5 w-5 ${typeColor}`} />
+                    <TypeIcon className={`h-5 w-5 ${typeColor}`} /> {/* typeColor will apply if not overridden by more specific Tailwind like text-primary */}
                     <span className="capitalize">{submission.type}</span>
                 </div>
             </div>
@@ -324,7 +324,7 @@ export default function SubmissionDetailPage() {
 
         </CardContent>
         <CardFooter className="bg-card-foreground/5 p-6 flex justify-end print:bg-transparent print:justify-between">
-            <p className="text-xs text-muted-foreground print:block hidden">AutoService Link - {submission.type} #{submission.id.substring(0,8)}</p>
+            <p className="text-xs text-muted-foreground print:block hidden">Lima Connect - {submission.type} #{submission.id.substring(0,8)}</p>
             {submission.type !== 'checkin' && submission.totalPrice !== undefined && (
               <p className="text-lg font-bold">Total Geral: <span className="text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span></p>
             )}
@@ -356,7 +356,7 @@ export default function SubmissionDetailPage() {
           .print\\:justify-between { justify-content: space-between !important; }
           .print\\:text-black { color: black !important; }
           .print\\:bg-muted\\/20 { background-color: hsl(var(--muted) / 0.2) !important; }
-          .print\\:border { border: 1px solid #e5e7eb !important; }
+          .print\\:border { border: 1px solid #e5e7eb !important; } /* Use a light border for print */
           .print\\:table-border table, 
           .print\\:table-border th, 
           .print\\:table-border td {
@@ -372,7 +372,7 @@ export default function SubmissionDetailPage() {
              color: black !important;
           }
           .print\\:table-border .text-primary {
-            color: hsl(var(--primary)) !important;
+            color: #0066cc !important; /* A standard blue for print if primary is too light */
           }
           img { /* Ensure images are constrained in print */
             max-width: 100% !important;

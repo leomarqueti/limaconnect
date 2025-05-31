@@ -18,7 +18,7 @@ export function AppHeader() {
         <Link href="/" className="mr-6 flex items-center space-x-2">
           <Logo />
           <span className="font-bold sm:inline-block font-headline">
-            AutoService Link
+            Lima Connect
           </span>
         </Link>
         {isDesktopView && (
