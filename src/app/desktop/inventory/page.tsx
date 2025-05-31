@@ -4,7 +4,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { getPartsAndServices } from '@/lib/data';
-import { createPartOrServiceAction } from '@/lib/actions';
+import { createPartOrServiceAction, updatePartOrServiceAction, deletePartOrServiceAction } from '@/lib/actions';
 import type { PartOrService, PartOrServiceFormData } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,9 +22,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
-  DialogClose
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { PartServiceForm } from '@/components/desktop/PartServiceForm';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Edit, Trash2, Package, Wrench, Loader2 } from 'lucide-react';
@@ -35,47 +44,86 @@ export default function InventoryManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmitting, startSubmitTransition] = useTransition();
+  const [editingItem, setEditingItem] = useState<PartOrService | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<PartOrService | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
+  const fetchItems = () => {
     setIsLoading(true);
-    // No need to call getPartsAndServices directly if actions revalidate correctly
-    // Forcing a re-fetch here for now to ensure fresh data on initial load / navigation
     const currentItems = getPartsAndServices();
     setItems(currentItems);
     setIsLoading(false);
-  }, []); // Empty dependency means this runs on mount
+  };
 
-  // This effect will run when items state is updated after revalidation from action
-   useEffect(() => {
-    const currentItems = getPartsAndServices();
-    setItems(currentItems);
-  }, [isSubmitting]); // Re-fetch when submission status changes
+  useEffect(() => {
+    fetchItems();
+  }, []);
 
-
-  const handleAddNewItem = async (data: PartOrServiceFormData) => {
+  const handleFormSubmit = async (data: PartOrServiceFormData) => {
     startSubmitTransition(async () => {
-      const result = await createPartOrServiceAction(data);
+      const action = editingItem 
+        ? updatePartOrServiceAction(editingItem.id, data) 
+        : createPartOrServiceAction(data);
+      
+      const result = await action;
+
       if (result.success && result.item) {
-        // setItems(prevItems => [...prevItems, result.item!].sort((a,b) => a.name.localeCompare(b.name))); // Optimistic update
         toast({
-          title: "Sucesso!",
-          description: `"${result.item.name}" foi adicionado ao inventário.`,
+          title: editingItem ? "Item Atualizado!" : "Sucesso!",
+          description: `"${result.item.name}" foi ${editingItem ? 'atualizado' : 'adicionado'} no inventário.`,
         });
-        setIsFormOpen(false); // Close dialog
+        setIsFormOpen(false);
+        setEditingItem(null);
+        fetchItems(); // Re-fetch items to reflect changes
       } else {
         toast({
           variant: "destructive",
-          title: "Erro ao adicionar item",
-          description: result.message || "Não foi possível adicionar o item.",
+          title: `Erro ao ${editingItem ? 'atualizar' : 'adicionar'} item`,
+          description: result.message || `Não foi possível ${editingItem ? 'atualizar' : 'adicionar'} o item.`,
         });
       }
     });
   };
-  
-  // TODO: Implement edit and delete handlers
 
-  if (isLoading && items.length === 0) { // Show loader only if initial load is happening AND no items yet
+  const handleOpenEditDialog = (item: PartOrService) => {
+    setEditingItem(item);
+    setIsFormOpen(true);
+  };
+
+  const handleOpenNewDialog = () => {
+    setEditingItem(null);
+    setIsFormOpen(true);
+  };
+  
+  const handleOpenDeleteDialog = (item: PartOrService) => {
+    setItemToDelete(item);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    startSubmitTransition(async () => {
+      const result = await deletePartOrServiceAction(itemToDelete.id);
+      if (result.success) {
+        toast({
+          title: "Item Excluído!",
+          description: `"${itemToDelete.name}" foi removido do inventário.`,
+        });
+        fetchItems(); // Re-fetch items
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Erro ao excluir item",
+          description: result.message || "Não foi possível excluir o item.",
+        });
+      }
+      setIsDeleteDialogOpen(false);
+      setItemToDelete(null);
+    });
+  };
+
+  if (isLoading && items.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -95,23 +143,28 @@ export default function InventoryManagementPage() {
             Adicione, edite ou remova peças e serviços.
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={(isOpen) => {
+          setIsFormOpen(isOpen);
+          if (!isOpen) setEditingItem(null); // Reset editingItem when dialog closes
+        }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenNewDialog}>
               <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Novo Item
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Adicionar Novo Item ao Inventário</DialogTitle>
+              <DialogTitle>{editingItem ? "Editar Item" : "Adicionar Novo Item ao Inventário"}</DialogTitle>
               <DialogDescription>
-                Preencha os detalhes abaixo para adicionar uma nova peça ou serviço.
+                {editingItem ? "Modifique os detalhes do item abaixo." : "Preencha os detalhes abaixo para adicionar uma nova peça ou serviço."}
               </DialogDescription>
             </DialogHeader>
             <PartServiceForm 
-              onSubmit={handleAddNewItem} 
+              onSubmit={handleFormSubmit} 
+              initialData={editingItem || undefined}
               isSubmitting={isSubmitting}
-              submitButtonText="Adicionar Item"
+              submitButtonText={editingItem ? "Salvar Alterações" : "Adicionar Item"}
+              key={editingItem ? editingItem.id : 'new'} // Add key to force re-render of form when editingItem changes
             />
           </DialogContent>
         </Dialog>
@@ -148,14 +201,41 @@ export default function InventoryManagementPage() {
                   </TableCell>
                   <TableCell className="text-right">R$ {item.price.toFixed(2)}</TableCell>
                   <TableCell className="text-center space-x-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" disabled> {/* TODO: Implement Edit */}
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEditDialog(item)} disabled={isSubmitting}>
                       <Edit className="h-4 w-4" />
                       <span className="sr-only">Editar</span>
                     </Button>
-                    <Button variant="destructive" size="icon" className="h-8 w-8" disabled> {/* TODO: Implement Delete */}
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Excluir</span>
-                    </Button>
+                    <AlertDialog open={isDeleteDialogOpen && itemToDelete?.id === item.id} onOpenChange={(isOpen) => {
+                        if (!isOpen) {
+                            setIsDeleteDialogOpen(false);
+                            setItemToDelete(null);
+                        }
+                    }}>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleOpenDeleteDialog(item)} disabled={isSubmitting}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Excluir</span>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza de que deseja excluir o item "{itemToDelete?.name}"? Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => {
+                            setIsDeleteDialogOpen(false);
+                            setItemToDelete(null);
+                          }} disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteConfirm} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                            {isSubmitting && itemToDelete?.id === item.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}

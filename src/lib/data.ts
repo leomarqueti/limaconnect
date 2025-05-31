@@ -100,8 +100,28 @@ export function addPartOrService(data: PartOrServiceFormData): PartOrService {
   return newItem;
 }
 
-// TODO: Implement updatePartOrService
-// TODO: Implement deletePartOrService
+export function updatePartOrService(id: string, data: PartOrServiceFormData): PartOrService | undefined {
+  const itemIndex = partsAndServices.findIndex(item => item.id === id);
+  if (itemIndex === -1) {
+    return undefined;
+  }
+  const updatedItem: PartOrService = {
+    ...partsAndServices[itemIndex],
+    name: data.name,
+    price: data.price,
+    type: data.type,
+    imageUrl: data.imageUrl || `https://placehold.co/150x150.png?text=${data.name.substring(0,3)}`,
+    aiHint: data.aiHint || data.name.toLowerCase().split(' ').slice(0,2).join(' '),
+  };
+  partsAndServices[itemIndex] = updatedItem;
+  return updatedItem;
+}
+
+export function deletePartOrService(id: string): boolean {
+  const initialLength = partsAndServices.length;
+  partsAndServices = partsAndServices.filter(item => item.id !== id);
+  return partsAndServices.length < initialLength;
+}
 
 
 export function getMechanics(): Mechanic[] {
@@ -154,3 +174,4 @@ export function markSubmissionAsViewed(id: string): void {
     _submissions[submissionIndex] = { ..._submissions[submissionIndex], status: 'viewed' };
   }
 }
+

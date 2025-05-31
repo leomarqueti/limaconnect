@@ -2,7 +2,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addSubmission, getPartsAndServices, markSubmissionAsViewed as markSubmissionViewedDb, addPartOrService as addPartOrServiceDb } from "@/lib/data";
+import { 
+  addSubmission, 
+  getPartsAndServices, 
+  markSubmissionAsViewed as markSubmissionViewedDb, 
+  addPartOrService as addPartOrServiceDb,
+  updatePartOrService as updatePartOrServiceDb,
+  deletePartOrService as deletePartOrServiceDb
+} from "@/lib/data";
 import type { PartOrService, SelectedItem, SubmissionType, PartOrServiceFormData } from "@/types";
 import { suggestRelatedParts as genAiSuggestRelatedParts } from "@/ai/flows/suggest-related-parts";
 import type { SuggestRelatedPartsInput, SuggestRelatedPartsOutput } from "@/ai/flows/suggest-related-parts";
@@ -101,10 +108,9 @@ export async function createPartOrServiceAction(
   data: PartOrServiceFormData
 ): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
   try {
-    // Here you would typically validate the data further if needed, or Zod already handled it
     const newItem = addPartOrServiceDb(data);
     revalidatePath("/desktop/inventory");
-    revalidatePath("/mobile/new-submission"); // Revalidate pages where parts list is used
+    revalidatePath("/mobile/new-submission"); 
     revalidatePath("/desktop/new-submission");
     return { success: true, message: "Item adicionado com sucesso!", item: newItem };
   } catch (error) {
@@ -113,5 +119,39 @@ export async function createPartOrServiceAction(
   }
 }
 
-// TODO: updatePartOrServiceAction
-// TODO: deletePartOrServiceAction
+export async function updatePartOrServiceAction(
+  id: string,
+  data: PartOrServiceFormData
+): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
+  try {
+    const updatedItem = updatePartOrServiceDb(id, data);
+    if (!updatedItem) {
+      return { success: false, message: "Item não encontrado para atualização." };
+    }
+    revalidatePath("/desktop/inventory");
+    revalidatePath("/mobile/new-submission"); 
+    revalidatePath("/desktop/new-submission");
+    return { success: true, message: "Item atualizado com sucesso!", item: updatedItem };
+  } catch (error) {
+    console.error("Failed to update part or service:", error);
+    return { success: false, message: "Falha ao atualizar o item. Tente novamente." };
+  }
+}
+
+export async function deletePartOrServiceAction(
+  id: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const success = deletePartOrServiceDb(id);
+    if (!success) {
+      return { success: false, message: "Item não encontrado para exclusão ou falha ao excluir." };
+    }
+    revalidatePath("/desktop/inventory");
+    revalidatePath("/mobile/new-submission");
+    revalidatePath("/desktop/new-submission");
+    return { success: true, message: "Item excluído com sucesso!" };
+  } catch (error) {
+    console.error("Failed to delete part or service:", error);
+    return { success: false, message: "Falha ao excluir o item. Tente novamente." };
+  }
+}
