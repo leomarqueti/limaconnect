@@ -89,15 +89,6 @@ export function SubmissionCard({ submission, mechanic }: SubmissionCardProps) {
           </Link>
         </Button>
       </CardFooter>
-      <style jsx global>{`
-        @keyframes pulse-border-animation {
-          0%, 100% { border-color: hsl(var(--primary) / 0.5); box-shadow: 0 0 0 0 hsl(var(--primary) / 0.3); }
-          50% { border-color: hsl(var(--primary)); box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1); }
-        }
-        .animate-pulse-border {
-          animation: pulse-border-animation 2s infinite;
-        }
-      `}</style>
     </Card>
   );
 }
