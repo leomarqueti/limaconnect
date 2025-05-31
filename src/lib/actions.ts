@@ -27,13 +27,12 @@ export async function submitJobAction(args: SubmitJobArgs) {
     })
     .filter(item => item !== null) as SelectedItem[];
 
-  if (selectedItems.length === 0 && args.submissionType === 'finished') { // Allow quotes with no items for now, but finished services should have items.
+  if (selectedItems.length === 0 && args.submissionType === 'finished') { 
     return { success: false, message: "Serviços finalizados devem conter ao menos um item." };
   }
    if (selectedItems.length === 0 && args.submissionType === 'quote' && !args.notes && !args.customerName && !args.vehicleInfo) {
     return { success: false, message: "Orçamentos vazios devem conter ao menos uma observação, cliente ou veículo." };
   }
-
 
   try {
     addSubmission(
@@ -44,14 +43,19 @@ export async function submitJobAction(args: SubmitJobArgs) {
       args.vehicleInfo,
       args.notes
     );
+    // Revalidate paths for both desktop and mobile where data might be displayed or affected
     revalidatePath("/desktop"); 
+    revalidatePath("/desktop/job", "layout"); // Revalidate job detail pages
     revalidatePath("/mobile/new-submission"); 
+    revalidatePath("/mobile");
   } catch (error) {
     console.error("Failed to submit job:", error);
     return { success: false, message: "Falha ao enviar o registro. Tente novamente." };
   }
   
-  redirect("/mobile");
+  // Redirect only applies to client-side transitions, typically after form submissions in Server Actions
+  // For mobile, we want to redirect back to the mobile home page.
+  redirect("/mobile"); 
 }
 
 export async function getAiSuggestionsAction(
@@ -70,11 +74,11 @@ export async function getAiSuggestionsAction(
     const allPartsAndServices = getPartsAndServices();
     
     const suggestions = output.suggestedPartsAndServices
-      .filter(name => !currentSelectionNames.includes(name))
+      .filter(name => !currentSelectionNames.includes(name)) // Exclude already selected items
       .map(name => allPartsAndServices.find(ps => ps.name === name))
       .filter(item => item !== undefined) as PartOrService[];
       
-    return suggestions.slice(0, 5); 
+    return suggestions.slice(0, 5); // Limit to 5 suggestions
   } catch (error) {
     console.error("Error getting AI suggestions:", error);
     return [];
@@ -84,9 +88,10 @@ export async function getAiSuggestionsAction(
 export async function markSubmissionAsViewedAction(submissionId: string) {
   try {
     markSubmissionViewedDb(submissionId);
-    revalidatePath("/desktop");
-    revalidatePath(`/desktop/job/${submissionId}`);
+    revalidatePath("/desktop"); // Revalidate the dashboard
+    revalidatePath(`/desktop/job/${submissionId}`); // Revalidate the specific job page
   } catch (error) {
     console.error("Failed to mark submission as viewed:", error);
+    // Optionally, throw the error or return an error object if the client needs to handle it
   }
 }
