@@ -8,11 +8,13 @@ export const metadata: Metadata = {
   description: 'Sistema de orçamentos e serviços para oficinas mecânicas.',
 };
 
+interface RootLayoutProps {
+  readonly children: React.ReactNode;
+}
+
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: RootLayoutProps) {
   return (
     <html lang="pt-BR">
       <head>
@@ -25,3 +27,5 @@ export default function RootLayout({
         <Toaster />
       </body>
     </html>
+  );
+}
