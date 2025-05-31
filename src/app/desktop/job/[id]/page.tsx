@@ -35,7 +35,7 @@ export default function SubmissionDetailPage() {
       const loadData = async () => {
         setIsLoading(true);
         try {
-          const sub = getSubmissionById(id);
+          const sub = await getSubmissionById(id);
           if (sub) {
             setSubmission(sub);
             setMechanic(getMechanicById(sub.mechanicId));
@@ -120,21 +120,29 @@ export default function SubmissionDetailPage() {
   const mechanicName = mechanic?.name || `Usuário ID: ${submission.mechanicId}`;
   let TypeIcon = FileText;
   let typeText = "Detalhes do Registro";
-  let typeColor = "text-gray-600"; // This will be overridden by primary color in dark theme generally
+  let typeColor = "text-gray-600"; 
 
   if (submission.type === 'quote') {
     TypeIcon = FileText;
     typeText = 'Orçamento Detalhado';
-    typeColor = 'text-primary'; // Use primary for themed color
+    typeColor = 'text-primary'; 
   } else if (submission.type === 'finished') {
     TypeIcon = CheckCircle;
     typeText = 'Serviço Finalizado Detalhado';
-    typeColor = 'text-primary'; // Use primary
+    typeColor = 'text-primary'; 
   } else if (submission.type === 'checkin') {
     TypeIcon = CarIcon;
     typeText = 'Detalhes do Check-in do Veículo';
-    typeColor = 'text-primary'; // Use primary
+    typeColor = 'text-primary'; 
   }
+
+  const formattedTimestamp = submission.timestamp && typeof submission.timestamp.getTime === 'function' && !isNaN(submission.timestamp.getTime())
+    ? format(submission.timestamp, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })
+    : 'Data indisponível';
+
+  const formattedCheckinDateShort = submission.timestamp && typeof submission.timestamp.getTime === 'function' && !isNaN(submission.timestamp.getTime())
+    ? format(submission.timestamp, "dd/MM/yyyy", { locale: ptBR })
+    : 'Data indisponível';
 
 
   return (
@@ -170,7 +178,7 @@ export default function SubmissionDetailPage() {
                     </div>
                 </div>
                  <div className="flex items-center gap-2 text-sm text-muted-foreground self-start sm:self-center">
-                    <TypeIcon className={`h-5 w-5 ${typeColor}`} /> {/* typeColor will apply if not overridden by more specific Tailwind like text-primary */}
+                    <TypeIcon className={`h-5 w-5 ${typeColor}`} /> 
                     <span className="capitalize">{submission.type}</span>
                 </div>
             </div>
@@ -188,7 +196,7 @@ export default function SubmissionDetailPage() {
             )}
              {submission.customerContact && (
               <div className="flex items-start">
-                <MessageSquare className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" /> {/* Using MessageSquare for contact */}
+                <MessageSquare className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" /> 
                 <div>
                   <span className="font-medium text-muted-foreground">Contato:</span>
                   <p className="text-foreground">{submission.customerContact}</p>
@@ -214,7 +222,7 @@ export default function SubmissionDetailPage() {
               <Clock className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" />
               <div>
                 <span className="font-medium text-muted-foreground">Data do Registro:</span>
-                <p className="text-foreground">{format(new Date(submission.timestamp), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}</p>
+                <p className="text-foreground">{formattedTimestamp}</p>
               </div>
             </div>
              {submission.type !== 'checkin' && submission.totalPrice !== undefined && (
@@ -329,7 +337,7 @@ export default function SubmissionDetailPage() {
               <p className="text-lg font-bold">Total Geral: <span className="text-primary">R$ {submission.totalPrice?.toFixed(2) || '0.00'}</span></p>
             )}
              {submission.type === 'checkin' && (
-              <p className="text-sm text-muted-foreground">Check-in realizado em {format(new Date(submission.timestamp), "dd/MM/yyyy", { locale: ptBR })}</p>
+              <p className="text-sm text-muted-foreground">Check-in realizado em {formattedCheckinDateShort}</p>
             )}
         </CardFooter>
       </Card>
@@ -356,7 +364,7 @@ export default function SubmissionDetailPage() {
           .print\\:justify-between { justify-content: space-between !important; }
           .print\\:text-black { color: black !important; }
           .print\\:bg-muted\\/20 { background-color: hsl(var(--muted) / 0.2) !important; }
-          .print\\:border { border: 1px solid #e5e7eb !important; } /* Use a light border for print */
+          .print\\:border { border: 1px solid #e5e7eb !important; } 
           .print\\:table-border table, 
           .print\\:table-border th, 
           .print\\:table-border td {
@@ -372,15 +380,17 @@ export default function SubmissionDetailPage() {
              color: black !important;
           }
           .print\\:table-border .text-primary {
-            color: #0066cc !important; /* A standard blue for print if primary is too light */
+            color: #0066cc !important; 
           }
-          img { /* Ensure images are constrained in print */
+          img { 
             max-width: 100% !important;
             height: auto !important;
-            object-fit: contain !important; /* Use contain for print to see whole image */
+            object-fit: contain !important; 
           }
         }
       `}</style>
     </div>
   );
 }
+
+    
