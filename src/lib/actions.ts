@@ -2,14 +2,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { 
-  addSubmission as addSubmissionDb, 
-  getPartsAndServices as getPartsAndServicesDb, 
-  markSubmissionAsViewed as markSubmissionViewedDb, 
+import {
+  addSubmission as addSubmissionDb,
+  getPartsAndServices as getPartsAndServicesDb,
+  markSubmissionAsViewed as markSubmissionViewedDb,
   addPartOrService as addPartOrServiceDb,
   updatePartOrService as updatePartOrServiceDb,
   deletePartOrService as deletePartOrServiceDb,
-  getPartOrServiceById as getPartOrServiceByIdDb
+  getPartOrServiceById as getPartOrServiceByIdDb,
+  archiveSubmissionInFirestore // Import the new function
 } from "@/lib/data";
 import type { PartOrService, SelectedItem, SubmissionType, PartOrServiceFormData, CheckinFormData, ChecklistItemValue, Submission } from "@/types";
 import { suggestRelatedParts as genAiSuggestRelatedParts } from "@/ai/flows/suggest-related-parts";
@@ -31,14 +32,11 @@ export interface SubmitActionResult {
 }
 
 export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitActionResult> {
-  const allPartsAndServices = await getPartsAndServicesDb(); // Async call now
+  const allPartsAndServices = await getPartsAndServicesDb();
   const selectedItems: SelectedItem[] = (
     await Promise.all(
       args.selectedItemsData.map(async (data) => {
-        // It's better to fetch item details again from DB or use the already fetched list if sure it's fresh
         const itemDetails = allPartsAndServices.find(ps => ps.id === data.itemId);
-        // If using Firestore, it might be safer to fetch each item by ID if there's a chance allPartsAndServices is stale
-        // const itemDetails = await getPartOrServiceByIdDb(data.itemId); 
         if (!itemDetails) return null;
         return { item: itemDetails, quantity: data.quantity };
       })
@@ -46,7 +44,7 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitAction
   ).filter(item => item !== null) as SelectedItem[];
 
 
-  if (selectedItems.length === 0 && args.submissionType === 'finished') { 
+  if (selectedItems.length === 0 && args.submissionType === 'finished') {
     return { success: false, message: "Serviços finalizados devem conter ao menos um item." };
   }
    if (selectedItems.length === 0 && args.submissionType === 'quote' && !args.notes && !args.customerName && !args.vehicleInfo) {
@@ -54,8 +52,7 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitAction
   }
 
   try {
-    // addSubmissionDb is still synchronous as it uses in-memory _submissions
-    const submissionBaseData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'totalPrice' | 'items'> & { items: SelectedItem[] } = {
+    const submissionBaseData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'isArchived'> & { items: SelectedItem[] } = {
       mechanicId: args.mechanicId,
       type: args.submissionType,
       items: selectedItems,
@@ -64,11 +61,11 @@ export async function submitJobAction(args: SubmitJobArgs): Promise<SubmitAction
       notes: args.notes,
     };
 
-    const newSubmission = addSubmissionDb(submissionBaseData as Omit<Submission, 'id' | 'timestamp' | 'status'>);
-    
-    revalidatePath("/desktop", "layout"); 
-    revalidatePath("/mobile", "layout"); 
-    
+    const newSubmission = await addSubmissionDb(submissionBaseData as Omit<Submission, 'id' | 'timestamp' | 'status' | 'isArchived'>);
+
+    revalidatePath("/desktop", "layout");
+    revalidatePath("/mobile", "layout");
+
     return { success: true, submissionId: newSubmission.id, message: "Registro enviado com sucesso!" };
 
   } catch (error) {
@@ -85,9 +82,8 @@ export interface SubmitCheckinArgs extends CheckinFormData {
 
 export async function submitCheckinAction(args: SubmitCheckinArgs): Promise<SubmitActionResult> {
   try {
-    // addSubmissionDb is still synchronous
-    const submissionData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'totalPrice' | 'items'> = {
-        mechanicId: 'tablet_user',
+    const submissionData: Omit<Submission, 'id' | 'timestamp' | 'status' | 'isArchived'> = {
+        mechanicId: 'tablet_user', // This could be dynamic if tablets are assigned to users
         type: 'checkin',
         customerName: args.customerName,
         customerContact: args.customerContact,
@@ -101,11 +97,11 @@ export async function submitCheckinAction(args: SubmitCheckinArgs): Promise<Subm
         photoDataUris: args.photoDataUris,
     };
 
-    const newSubmission = addSubmissionDb(submissionData);
-    
-    revalidatePath("/desktop", "layout"); 
-    revalidatePath("/tablet", "layout"); 
-    
+    const newSubmission = await addSubmissionDb(submissionData);
+
+    revalidatePath("/desktop", "layout");
+    revalidatePath("/tablet", "layout");
+
     return { success: true, submissionId: newSubmission.id, message: "Check-in do veículo enviado com sucesso!" };
 
   } catch (error) {
@@ -128,25 +124,24 @@ export async function getAiSuggestionsAction(
 
   try {
     const output: SuggestRelatedPartsOutput = await genAiSuggestRelatedParts(input);
-    const allPartsAndServicesData = await getPartsAndServicesDb(); // Async call
-    
+    const allPartsAndServicesData = await getPartsAndServicesDb();
+
     const suggestions = output.suggestedPartsAndServices
       .map(name => allPartsAndServicesData.find(ps => ps.name === name))
-      .filter(item => item !== undefined && !currentSelectionNames.includes(item.name)) as PartOrService[]; 
-      
-    return suggestions.slice(0, 5); 
+      .filter(item => item !== undefined && !currentSelectionNames.includes(item.name)) as PartOrService[];
+
+    return suggestions.slice(0, 5);
   } catch (error) {
     console.error("Error getting AI suggestions:", error);
     return [];
   }
 }
 
-// markSubmissionViewedDb is still synchronous
 export async function markSubmissionAsViewedAction(submissionId: string) {
   try {
-    markSubmissionViewedDb(submissionId);
-    revalidatePath("/desktop"); 
-    revalidatePath(`/desktop/job/${submissionId}`); 
+    await markSubmissionViewedDb(submissionId);
+    revalidatePath("/desktop");
+    revalidatePath(`/desktop/job/${submissionId}`);
   } catch (error) {
     console.error("Failed to mark submission as viewed:", error);
   }
@@ -157,9 +152,9 @@ export async function createPartOrServiceAction(
   data: PartOrServiceFormData
 ): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
   try {
-    const newItem = await addPartOrServiceDb(data); // Async call
+    const newItem = await addPartOrServiceDb(data);
     revalidatePath("/desktop/inventory");
-    revalidatePath("/mobile/new-submission"); 
+    revalidatePath("/mobile/new-submission");
     revalidatePath("/desktop/new-submission");
     return { success: true, message: "Item adicionado com sucesso!", item: newItem };
   } catch (error) {
@@ -173,12 +168,12 @@ export async function updatePartOrServiceAction(
   data: PartOrServiceFormData
 ): Promise<{ success: boolean; message?: string; item?: PartOrService }> {
   try {
-    const updatedItem = await updatePartOrServiceDb(id, data); // Async call
+    const updatedItem = await updatePartOrServiceDb(id, data);
     if (!updatedItem) {
       return { success: false, message: "Item não encontrado para atualização." };
     }
     revalidatePath("/desktop/inventory");
-    revalidatePath("/mobile/new-submission"); 
+    revalidatePath("/mobile/new-submission");
     revalidatePath("/desktop/new-submission");
     return { success: true, message: "Item atualizado com sucesso!", item: updatedItem };
   } catch (error) {
@@ -191,7 +186,7 @@ export async function deletePartOrServiceAction(
   id: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const success = await deletePartOrServiceDb(id); // Async call
+    const success = await deletePartOrServiceDb(id);
     if (!success) {
       return { success: false, message: "Item não encontrado para exclusão ou falha ao excluir." };
     }
@@ -202,5 +197,21 @@ export async function deletePartOrServiceAction(
   } catch (error) {
     console.error("Failed to delete part or service:", error);
     return { success: false, message: "Falha ao excluir o item. Tente novamente." };
+  }
+}
+
+export async function archiveSubmissionAction(submissionId: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const success = await archiveSubmissionInFirestore(submissionId);
+    if (!success) {
+      return { success: false, message: "Falha ao arquivar a submissão. Item não encontrado ou erro no servidor." };
+    }
+    revalidatePath("/desktop");
+    revalidatePath(`/desktop/job/${submissionId}`);
+    revalidatePath("/desktop/history", "layout"); // Revalidate history page layout
+    return { success: true, message: "Submissão arquivada com sucesso!" };
+  } catch (error) {
+    console.error("Error in archiveSubmissionAction:", error);
+    return { success: false, message: "Erro ao tentar arquivar a submissão." };
   }
 }

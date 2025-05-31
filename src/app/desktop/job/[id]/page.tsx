@@ -1,24 +1,36 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getSubmissionById, getMechanicById } from '@/lib/data';
-import { markSubmissionAsViewedAction } from '@/lib/actions';
-import type { Submission, Mechanic, SelectedItem, ChecklistItemValue } from '@/types';
+import { getSubmissionById, getUserFromFirestore } from '@/lib/data'; // Changed getMechanicById to getUserFromFirestore
+import { markSubmissionAsViewedAction, archiveSubmissionAction } from '@/lib/actions';
+import type { Submission, UserProfile, SelectedItem, ChecklistItemValue } from '@/types'; // Changed Mechanic to UserProfile
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, User, Wrench, Clock, Tag, MessageSquare, FileText, CheckCircle, ShoppingCart, Package, Printer, Car as CarIcon, ClipboardList, Camera } from 'lucide-react'; // Added CarIcon, ClipboardList, Camera
+import { ArrowLeft, User, Wrench, Clock, Tag, MessageSquare, FileText, CheckCircle, ShoppingCart, Package, Printer, Car as CarIcon, ClipboardList, Camera, Archive as ArchiveIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Skeleton } from '@/components/ui/skeleton'; 
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 
 export default function SubmissionDetailPage() {
   const params = useParams();
@@ -26,9 +38,12 @@ export default function SubmissionDetailPage() {
   const { toast } = useToast();
   const id = params.id as string;
 
-  const [submission, setSubmission] = useState<Submission | null | undefined>(undefined); 
-  const [mechanic, setMechanic] = useState<Mechanic | null | undefined>(undefined);
+  const [submission, setSubmission] = useState<Submission | null | undefined>(undefined);
+  const [submitterProfile, setSubmitterProfile] = useState<UserProfile | null | undefined>(undefined); // Changed from mechanic to submitterProfile
   const [isLoading, setIsLoading] = useState(true);
+  const [isArchiving, startArchiveTransition] = useTransition();
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
+
 
   useEffect(() => {
     if (id) {
@@ -38,15 +53,19 @@ export default function SubmissionDetailPage() {
           const sub = await getSubmissionById(id);
           if (sub) {
             setSubmission(sub);
-            setMechanic(getMechanicById(sub.mechanicId));
-            if (sub.status === 'pending') {
+            if (sub.mechanicId) { // Fetch profile if mechanicId exists
+              const profile = await getUserFromFirestore(sub.mechanicId);
+              setSubmitterProfile(profile);
+            } else {
+              setSubmitterProfile(null); // No mechanicId, so no profile
+            }
+
+            if (sub.status === 'pending' && !sub.isArchived) { // Don't mark as viewed if archived
               await markSubmissionAsViewedAction(id);
-              // Manually update local state if needed or rely on revalidation,
-              // for immediate visual feedback:
               setSubmission(s => s ? {...s, status: 'viewed'} : null);
             }
           } else {
-            setSubmission(null); 
+            setSubmission(null);
             toast({
               variant: "destructive",
               title: "Submissão não encontrada",
@@ -72,6 +91,30 @@ export default function SubmissionDetailPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleArchive = async () => {
+    if (!submission) return;
+    startArchiveTransition(async () => {
+      const result = await archiveSubmissionAction(submission.id);
+      if (result.success) {
+        toast({
+          title: "Submissão Arquivada!",
+          description: result.message,
+        });
+        // Update local state to reflect archiving
+        setSubmission(prev => prev ? { ...prev, isArchived: true } : null);
+        setIsArchiveConfirmOpen(false);
+        router.push('/desktop'); // Redirect to dashboard after archiving
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Erro ao Arquivar",
+          description: result.message || "Não foi possível arquivar a submissão.",
+        });
+        setIsArchiveConfirmOpen(false);
+      }
+    });
   };
 
   if (isLoading) {
@@ -117,23 +160,23 @@ export default function SubmissionDetailPage() {
     );
   }
 
-  const mechanicName = mechanic?.name || `Usuário ID: ${submission.mechanicId}`;
+  const submitterName = submitterProfile?.displayName || `Usuário ID: ${submission.mechanicId.substring(0,8)}`;
   let TypeIcon = FileText;
   let typeText = "Detalhes do Registro";
-  let typeColor = "text-gray-600"; 
+  let typeColor = "text-gray-600";
 
   if (submission.type === 'quote') {
     TypeIcon = FileText;
     typeText = 'Orçamento Detalhado';
-    typeColor = 'text-primary'; 
+    typeColor = 'text-primary';
   } else if (submission.type === 'finished') {
     TypeIcon = CheckCircle;
     typeText = 'Serviço Finalizado Detalhado';
-    typeColor = 'text-primary'; 
+    typeColor = 'text-primary';
   } else if (submission.type === 'checkin') {
     TypeIcon = CarIcon;
     typeText = 'Detalhes do Check-in do Veículo';
-    typeColor = 'text-primary'; 
+    typeColor = 'text-primary';
   }
 
   const formattedTimestamp = submission.timestamp && typeof submission.timestamp.getTime === 'function' && !isNaN(submission.timestamp.getTime())
@@ -154,31 +197,69 @@ export default function SubmissionDetailPage() {
             Voltar ao Painel
           </Link>
         </Button>
-        <Button variant="default" onClick={handlePrint}>
-          <Printer className="h-4 w-4 mr-2" />
-          Imprimir / Salvar PDF
-        </Button>
+        <div className="flex gap-2">
+          {!submission.isArchived && (
+            <AlertDialog open={isArchiveConfirmOpen} onOpenChange={setIsArchiveConfirmOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" disabled={isArchiving}>
+                  {isArchiving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ArchiveIcon className="h-4 w-4 mr-2" />}
+                  Arquivar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Arquivamento</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza de que deseja arquivar esta submissão? Ela será movida para o histórico e não aparecerá no painel principal.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isArchiving}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleArchive} disabled={isArchiving} className="bg-primary hover:bg-primary/90">
+                    {isArchiving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirmar Arquivamento
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+           {submission.isArchived && (
+            <Badge variant="outline" className="text-sm py-2 px-3 border-yellow-500 text-yellow-600">
+              <ArchiveIcon className="h-4 w-4 mr-2" />
+              Arquivado
+            </Badge>
+          )}
+          <Button variant="default" onClick={handlePrint}>
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimir / Salvar PDF
+          </Button>
+        </div>
       </div>
 
       <Card className="overflow-hidden shadow-lg print:shadow-none print:border-0">
         <CardHeader className="bg-card-foreground/5 p-6 print:bg-transparent">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="flex items-center space-x-3">
-                    {mechanic && (
+                    {submitterProfile && (
                         <Avatar className="h-12 w-12 border-2 border-primary print:hidden">
-                        <AvatarImage src={mechanic.photoUrl} alt={mechanicName} data-ai-hint={mechanic.aiHint} />
-                        <AvatarFallback>{mechanicName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarImage src={submitterProfile.photoURL} alt={submitterProfile.displayName || 'Usuário'} data-ai-hint={submitterProfile.photoURL ? "user profile" : "avatar placeholder"} />
+                        <AvatarFallback>{(submitterProfile.displayName || 'U').substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
+                    )}
+                    {!submitterProfile && submission.mechanicId && (
+                       <Avatar className="h-12 w-12 border-2 border-muted print:hidden">
+                        <AvatarFallback>{submission.mechanicId.substring(0,2).toUpperCase()}</AvatarFallback>
+                       </Avatar>
                     )}
                     <div>
                         <CardTitle className="text-2xl font-bold text-foreground">{typeText}</CardTitle>
                         <CardDescription className="text-sm">
-                        Registrado por: <span className="font-medium">{mechanicName}</span>
+                        Registrado por: <span className="font-medium">{submitterName}</span>
                         </CardDescription>
                     </div>
                 </div>
                  <div className="flex items-center gap-2 text-sm text-muted-foreground self-start sm:self-center">
-                    <TypeIcon className={`h-5 w-5 ${typeColor}`} /> 
+                    <TypeIcon className={`h-5 w-5 ${typeColor}`} />
                     <span className="capitalize">{submission.type}</span>
                 </div>
             </div>
@@ -196,7 +277,7 @@ export default function SubmissionDetailPage() {
             )}
              {submission.customerContact && (
               <div className="flex items-start">
-                <MessageSquare className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" /> 
+                <MessageSquare className="h-5 w-5 mr-3 mt-0.5 text-primary flex-shrink-0" />
                 <div>
                   <span className="font-medium text-muted-foreground">Contato:</span>
                   <p className="text-foreground">{submission.customerContact}</p>
@@ -209,7 +290,7 @@ export default function SubmissionDetailPage() {
                 <div>
                   <span className="font-medium text-muted-foreground">Veículo:</span>
                   <p className="text-foreground">
-                    {submission.type === 'checkin' 
+                    {submission.type === 'checkin'
                       ? `${submission.vehicleMake || ''} ${submission.vehicleModel || ''} ${submission.vehicleYear || ''}`.trim()
                       : submission.vehicleInfo}
                   </p>
@@ -249,7 +330,7 @@ export default function SubmissionDetailPage() {
               <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md whitespace-pre-wrap">{submission.notes}</p>
             </div>
           )}
-          
+
           {(submission.type === 'quote' || submission.type === 'finished') && submission.items && submission.items.length > 0 && (
             <>
               <Separator />
@@ -271,7 +352,7 @@ export default function SubmissionDetailPage() {
                         <TableRow key={item.id}>
                           <TableCell className="hidden sm:table-cell p-2 print:hidden">
                             <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted">
-                              <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} />
+                              <Image src={item.imageUrl} alt={item.name} fill objectFit="cover" data-ai-hint={item.aiHint} sizes="50px" />
                             </div>
                           </TableCell>
                           <TableCell>
@@ -312,7 +393,7 @@ export default function SubmissionDetailPage() {
               </div>
             </>
           )}
-          
+
           {submission.type === 'checkin' && submission.photoDataUris && submission.photoDataUris.length > 0 && (
              <>
               <Separator />
@@ -347,7 +428,7 @@ export default function SubmissionDetailPage() {
           body {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            color-scheme: light !important; 
+            color-scheme: light !important;
           }
           .print\\:hidden { display: none !important; }
           .print\\:block { display: block !important; }
@@ -364,33 +445,31 @@ export default function SubmissionDetailPage() {
           .print\\:justify-between { justify-content: space-between !important; }
           .print\\:text-black { color: black !important; }
           .print\\:bg-muted\\/20 { background-color: hsl(var(--muted) / 0.2) !important; }
-          .print\\:border { border: 1px solid #e5e7eb !important; } 
-          .print\\:table-border table, 
-          .print\\:table-border th, 
+          .print\\:border { border: 1px solid #e5e7eb !important; }
+          .print\\:table-border table,
+          .print\\:table-border th,
           .print\\:table-border td {
-            border: 1px solid #ddd !important; 
-            padding: 8px !important; 
-            color: black !important; 
+            border: 1px solid #ddd !important;
+            padding: 8px !important;
+            color: black !important;
           }
           .print\\:table-border th {
-            background-color: #f2f2f2 !important; 
+            background-color: #f2f2f2 !important;
             font-weight: bold;
           }
           .print\\:table-border td p, .print\\:table-border td span {
              color: black !important;
           }
           .print\\:table-border .text-primary {
-            color: #0066cc !important; 
+            color: #0066cc !important;
           }
-          img { 
+          img {
             max-width: 100% !important;
             height: auto !important;
-            object-fit: contain !important; 
+            object-fit: contain !important;
           }
         }
       `}</style>
     </div>
   );
 }
-
-    
