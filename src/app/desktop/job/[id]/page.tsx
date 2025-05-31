@@ -204,9 +204,9 @@ export default function SubmissionDetailPage() {
           <div>
             <h3 className="text-md font-semibold mb-3 flex items-center"><ShoppingCart className="h-5 w-5 mr-2 text-primary" /> Itens Registrados</h3>
             {submission.items.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden print:border-0">
+              <div className="border rounded-lg overflow-hidden print:border print:table-border">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="print:bg-muted/20">
                     <TableRow>
                       <TableHead className="w-[60px] hidden sm:table-cell print:hidden"></TableHead>
                       <TableHead>Item</TableHead>
@@ -252,8 +252,9 @@ export default function SubmissionDetailPage() {
       <style jsx global>{`
         @media print {
           body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-scheme: light !important; /* Forçar esquema de cores claro para impressão */
           }
           .print\\:hidden { display: none !important; }
           .print\\:block { display: block !important; }
@@ -269,18 +270,37 @@ export default function SubmissionDetailPage() {
           .print\\:py-0 { padding-top: 0 !important; padding-bottom: 0 !important; }
           .print\\:justify-between { justify-content: space-between !important; }
           .print\\:text-black { color: black !important; }
+          .print\\:bg-muted\\/20 { background-color: hsl(var(--muted) / 0.2) !important; }
+          .print\\:border { border: 1px solid #e5e7eb !important; } /* Cor de borda genérica para impressão */
 
-          /* Ensure table borders are visible for printing */
-           .print\\:table-border table, .print\\:table-border th, .print\\:table-border td {
-            border: 1px solid #ccc !important;
+
+          /* Estilos específicos para a tabela na impressão */
+          .print\\:table-border table, 
+          .print\\:table-border th, 
+          .print\\:table-border td {
+            border: 1px solid #ddd !important; /* Cor de borda mais visível */
+            padding: 8px !important; /* Adiciona padding para melhor leitura */
+            color: black !important; /* Garante texto preto */
           }
           .print\\:table-border th {
-            background-color: #f0f0f0 !important;
+            background-color: #f2f2f2 !important; /* Fundo leve para cabeçalhos */
+            font-weight: bold;
+          }
+          .print\\:table-border td p, .print\\:table-border td span {
+             color: black !important;
+          }
+          .print\\:table-border .text-primary {
+            color: hsl(var(--primary)) !important; /* Manter cor primária se desejado, ou mudar para preto */
+          }
+           /* Esconde elementos que não fazem sentido na impressão */
+          .print\\:hidden {
+            display: none !important;
           }
         }
       `}</style>
     </div>
   );
 }
-
     
+    
+      
