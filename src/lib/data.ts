@@ -92,4 +92,5 @@ export function markSubmissionAsViewed(id: string): void {
   const submission = _submissions.find(s => s.id === id);
   if (submission) {
     submission.status = 'viewed';
-  
+  }
+}

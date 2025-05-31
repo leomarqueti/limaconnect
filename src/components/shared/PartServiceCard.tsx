@@ -20,9 +20,10 @@ export function PartServiceCard({ item, onSelect, isSelected, showPrice = false 
           <Image
             src={item.imageUrl}
             alt={item.name}
-            layout="fill"
-            objectFit="cover"
+            fill
+            className="object-cover"
             data-ai-hint={item.aiHint}
+            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" // Example sizes, adjust as needed
           />
         </div>
       </CardHeader>
@@ -43,3 +44,6 @@ export function PartServiceCard({ item, onSelect, isSelected, showPrice = false 
           {isSelected ? 'Selecionado' : 'Adicionar'}
         </Button>
       </CardFooter>
+    </Card>
+  );
+}

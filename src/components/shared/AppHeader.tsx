@@ -11,3 +11,8 @@ export function AppHeader() {
           <span className="font-bold sm:inline-block font-headline">
             AutoService Link
           </span>
+        </Link>
+      </div>
+    </header>
+  );
+}

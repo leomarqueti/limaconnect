@@ -9,4 +9,9 @@ export default function MobileLayout({
   return (
     <div className="flex flex-col min-h-screen">
       <AppHeader />
-      <main className="flex-grow container mx-auto px-
+      <main className="flex-grow container mx-auto px-4 py-6">
+        {children}
+      </main>
+    </div>
+  );
+}
