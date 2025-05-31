@@ -2,8 +2,8 @@
 "use client"; 
 
 import Link from 'next/link';
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { getSubmissions, getUserFromFirestore, safeTimestampToDate } from '@/lib/data'; // safeTimestampToDate adicionado
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'; // Added useRef
+import { getSubmissions, getUserFromFirestore, safeTimestampToDate } from '@/lib/data';
 import type { Submission, UserProfile, SubmissionType } from '@/types';
 import { SubmissionCard } from '@/components/desktop/SubmissionCard';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,8 +13,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from '@/components/ui/card';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData } from 'firebase/firestore'; // Imports do Firestore
-import { db } from '@/lib/firebase'; // Import db
+import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function DesktopDashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -22,32 +22,31 @@ export default function DesktopDashboardPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [userProfilesMap, setUserProfilesMap] = useState<Record<string, UserProfile | null>>({});
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  const initialLoadCompleteRef = useRef(false); // Usar ref para controlar o carregamento inicial
+  const userProfilesMapRef = useRef<Record<string, UserProfile | null>>({}); // Ref para o estado atual do mapa de perfis
 
   const [filterType, setFilterType] = useState<SubmissionType | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<'pending' | 'viewed' | 'all'>('all');
 
-  const fetchProfileIfNotExists = useCallback(async (uid: string) => {
-    if (!userProfilesMap[uid] && uid) {
-      const profile = await getUserFromFirestore(uid);
-      setUserProfilesMap(prev => ({ ...prev, [uid]: profile }));
-      return profile;
-    }
-    return userProfilesMap[uid];
+  // Atualizar o ref sempre que userProfilesMap mudar
+  useEffect(() => {
+    userProfilesMapRef.current = userProfilesMap;
   }, [userProfilesMap]);
 
 
   useEffect(() => {
     if (authLoading || !user) {
       setIsLoadingSubmissions(false);
-      if (!authLoading && !user) { // Limpa submissões se o usuário deslogar
-          setSubmissions([]);
-          setUserProfilesMap({});
-      }
+      setSubmissions([]);
+      setUserProfilesMap({});
+      initialLoadCompleteRef.current = false; // Resetar ref se usuário deslogar
       return;
     }
 
     setIsLoadingSubmissions(true);
+    initialLoadCompleteRef.current = false; // Resetar para cada nova subscrição (ex: mudança de usuário)
+
 
     const q = query(
       collection(db, "submissions"),
@@ -57,7 +56,7 @@ export default function DesktopDashboardPage() {
 
     const unsubscribe = onSnapshot(q, async (querySnapshot) => {
       const fetchedSubmissions: Submission[] = [];
-      const profilesToLoad: Set<string> = new Set();
+      const profilesToLoadUids: Set<string> = new Set();
 
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data() as DocumentData;
@@ -85,30 +84,51 @@ export default function DesktopDashboardPage() {
         };
         fetchedSubmissions.push(submission);
         if (submission.mechanicId) {
-          profilesToLoad.add(submission.mechanicId);
+          profilesToLoadUids.add(submission.mechanicId);
         }
       });
 
       setSubmissions(fetchedSubmissions);
 
-      // Fetch profiles for new mechanic IDs
-      const newProfilesMapUpdates: Record<string, UserProfile | null> = {};
-      for (const uid of profilesToLoad) {
-        if (!userProfilesMap[uid]) {
-          const profile = await getUserFromFirestore(uid);
-          newProfilesMapUpdates[uid] = profile;
+      // Fetch profiles for new mechanic IDs without causing useEffect loop
+      const currentProfiles = userProfilesMapRef.current;
+      const uidsToFetchActually: string[] = [];
+      profilesToLoadUids.forEach(uid => {
+        if (!currentProfiles[uid]) {
+          uidsToFetchActually.push(uid);
         }
-      }
-      if (Object.keys(newProfilesMapUpdates).length > 0) {
-        setUserProfilesMap(prev => ({ ...prev, ...newProfilesMapUpdates }));
+      });
+
+      if (uidsToFetchActually.length > 0) {
+        const profilePromises = uidsToFetchActually.map(uid => getUserFromFirestore(uid));
+        const resolvedProfiles = await Promise.all(profilePromises);
+        setUserProfilesMap(prevMap => {
+          const newMapUpdates: Record<string, UserProfile | null> = {};
+          resolvedProfiles.forEach((profile, index) => {
+            if (profile) {
+              newMapUpdates[uidsToFetchActually[index]] = profile;
+            }
+          });
+          return { ...prevMap, ...newMapUpdates };
+        });
       }
       
-      if (initialLoadComplete) {
+      if (initialLoadCompleteRef.current) {
         querySnapshot.docChanges().forEach(async (change) => {
           if (change.type === "added") {
             const newSubmissionData = change.doc.data();
-            if (newSubmissionData.status === 'pending' && newSubmissionData.isArchived === false) {
-              const submitterProfile = await fetchProfileIfNotExists(newSubmissionData.mechanicId);
+            // Check if this submission is already in our state (onSnapshot can sometimes re-fire for existing docs on initial connection)
+             const isTrulyNew = !submissions.some(s => s.id === change.doc.id);
+
+            if (isTrulyNew && newSubmissionData.status === 'pending' && newSubmissionData.isArchived === false) {
+              let submitterProfile = userProfilesMapRef.current[newSubmissionData.mechanicId];
+              if (!submitterProfile && newSubmissionData.mechanicId) {
+                  submitterProfile = await getUserFromFirestore(newSubmissionData.mechanicId);
+                  if (submitterProfile) {
+                      setUserProfilesMap(prev => ({ ...prev, [newSubmissionData.mechanicId]: submitterProfile }));
+                  }
+              }
+
               let submitterName = `ID: ${newSubmissionData.mechanicId.substring(0,5)}...`;
                if (newSubmissionData.mechanicId === 'office_user') {
                   submitterName = 'Escritório';
@@ -121,13 +141,13 @@ export default function DesktopDashboardPage() {
               toast({
                 title: `🔔 Nova Submissão: ${newSubmissionData.type}`,
                 description: `De: ${submitterName}. Cliente: ${newSubmissionData.customerName || 'N/A'}. Veículo: ${newSubmissionData.vehicleInfo || newSubmissionData.vehicleModel || 'N/A'}`,
-                duration: 15000, // 15 segundos
+                duration: 15000,
               });
             }
           }
         });
       } else {
-        setInitialLoadComplete(true);
+        initialLoadCompleteRef.current = true;
       }
       setIsLoadingSubmissions(false);
     }, (error) => {
@@ -146,14 +166,14 @@ export default function DesktopDashboardPage() {
         });
       }
       setIsLoadingSubmissions(false);
-      setInitialLoadComplete(true); // Marca como completo mesmo em erro para evitar loops
+      initialLoadCompleteRef.current = true; 
     });
 
     return () => {
       unsubscribe();
-      setInitialLoadComplete(false); // Resetar ao desmontar ou usuário mudar
+      initialLoadCompleteRef.current = false; 
     };
-  }, [user, authLoading, toast, fetchProfileIfNotExists, initialLoadComplete, userProfilesMap]); // Adicionado initialLoadComplete e userProfilesMap
+  }, [user, authLoading, toast]); // REMOVIDO: fetchProfileIfNotExists, initialLoadComplete, userProfilesMap
 
 
   const filteredSubmissions = useMemo(() => {
@@ -169,7 +189,7 @@ export default function DesktopDashboardPage() {
     setFilterStatus('all');
   };
 
-  if (authLoading || (isLoadingSubmissions && !initialLoadComplete && user)) {
+  if (authLoading || (isLoadingSubmissions && !initialLoadCompleteRef.current && user)) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -247,7 +267,7 @@ export default function DesktopDashboardPage() {
         </CardContent>
       </Card>
 
-      {filteredSubmissions.length === 0 && !isLoadingSubmissions ? ( // Removido !isLoadingProfiles daqui
+      {filteredSubmissions.length === 0 && !isLoadingSubmissions ? (
         <Alert>
           <ListChecks className="h-4 w-4" />
           <AlertTitle>{noFiltersApplied ? 'Nenhuma Submissão Ativa' : 'Nenhuma Submissão Encontrada'}</AlertTitle>
@@ -260,7 +280,7 @@ export default function DesktopDashboardPage() {
         </Alert>
       ) : (
         <>
-          {isLoadingSubmissions && !initialLoadComplete && (
+          {isLoadingSubmissions && !initialLoadCompleteRef.current && ( // Usar ref para condição de loading
              <div className="flex justify-center items-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 <p className="ml-2 text-muted-foreground">Carregando registros...</p>
@@ -268,12 +288,12 @@ export default function DesktopDashboardPage() {
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredSubmissions.map((submission) => {
-              const submitterProfile = userProfilesMap[submission.mechanicId];
+              const submitterProfile = userProfilesMap[submission.mechanicId]; // Ler do estado para renderização
               return (
                 <SubmissionCard
                   key={submission.id}
                   submission={submission}
-                  submitterProfile={submitterProfile || undefined} // Pode ser undefined enquanto carrega
+                  submitterProfile={submitterProfile || undefined}
                 />
               );
             })}
@@ -283,5 +303,3 @@ export default function DesktopDashboardPage() {
     </div>
   );
 }
-
-    
