@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { PackageSearch, LayoutDashboard, LogOut, UserCircle, Settings } from 'lucide-react'; 
+import { PackageSearch, LayoutDashboard, LogOut, UserCircle, Settings, Archive } from 'lucide-react'; 
 import { useAuth } from '@/contexts/AuthContext'; 
 import {
   DropdownMenu,
@@ -72,6 +72,12 @@ export function AppHeader() {
                 <Link href="/desktop/inventory">
                   <PackageSearch className="mr-2 h-4 w-4" />
                   Gerenciar Inventário
+                </Link>
+              </Button>
+              <Button variant={pathname === '/desktop/history' ? 'secondary' : 'ghost'} size="sm" asChild>
+                <Link href="/desktop/history">
+                  <Archive className="mr-2 h-4 w-4" />
+                  Histórico
                 </Link>
               </Button>
             </nav>
