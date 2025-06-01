@@ -10,22 +10,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { getPartsAndServices } from '@/lib/data';
-import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType } from '@/types';
+import { getPartsAndServices, getMechanicById } from '@/lib/data';
+import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType, Mechanic } from '@/types';
 import { PartServiceCard } from '@/components/shared/PartServiceCard';
-import { Search, Plus, Minus, XCircle, Loader2, Lightbulb } from 'lucide-react';
+import { Search, Plus, Minus, XCircle, Loader2, Lightbulb, ArrowLeft } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { submitJobAction, getAiSuggestionsAction } from '@/lib/actions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from '@/components/ui/separator';
+import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 export default function NewSubmissionPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const submissionType = searchParams.get('type') as SubmissionType | null;
-  const mechanicId = searchParams.get('mechanicId');
+  const submissionTypeParam = searchParams.get('type');
+  const submissionType: Extract<SubmissionType, 'quote' | 'finished'> | null =
+    (submissionTypeParam === 'quote' || submissionTypeParam === 'finished')
+    ? submissionTypeParam
+    : null;
+  
+  // const mechanicId = searchParams.get('mechanicId'); // Will be replaced by logged-in user
+  const mechanicId = user?.uid; // Use logged-in user's ID
 
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [isFetchingSuggestions, startFetchingSuggestionsTransition] = useTransition();
@@ -35,21 +45,32 @@ export default function NewSubmissionPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItemsMap, setSelectedItemsMap] = useState<Map<string, SelectedItemType>>(new Map());
   const [aiSuggestions, setAiSuggestions] = useState<PartOrService[]>([]);
+  const [mechanicProfile, setMechanicProfile] = useState<UserProfile | null | undefined>(null);
 
   const [customerName, setCustomerName] = useState('');
   const [vehicleInfo, setVehicleInfo] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (!submissionType || !mechanicId) {
+    if (!submissionType) { // Removed mechanicId from this check as it's now from auth user
       toast({
         variant: "destructive",
         title: "Erro de Parâmetro",
-        description: "Tipo de submissão ou ID do mecânico ausente. Redirecionando...",
+        description: `Tipo de submissão '${submissionTypeParam || 'ausente'}' inválido. Redirecionando...`,
       });
       router.replace('/mobile');
       return;
     }
+    if (!mechanicId) { // Explicitly check if mechanicId (from auth) is available
+        toast({
+            variant: "destructive",
+            title: "Usuário não autenticado",
+            description: "Você precisa estar logado para criar uma submissão. Redirecionando...",
+        });
+        router.replace('/login?origin=mobile/new-submission'); // Or just /mobile
+        return;
+    }
+
 
     const fetchInventory = async () => {
       setIsFetchingInventory(true);
@@ -69,16 +90,19 @@ export default function NewSubmissionPage() {
       }
     };
     fetchInventory();
-  }, [submissionType, mechanicId, router, toast]);
+    if (user?.profile) {
+        setMechanicProfile(user.profile);
+    }
+
+  }, [submissionType, mechanicId, router, toast, submissionTypeParam, user]);
 
   const selectedItemsArray = useMemo(() => Array.from(selectedItemsMap.values()), [selectedItemsMap]);
 
   useEffect(() => {
-    if (selectedItemsArray.length > 0 && allPartsAndServices.length > 0) { // Ensure allPartsAndServices is loaded
+    if (selectedItemsArray.length > 0 && allPartsAndServices.length > 0) { 
       startFetchingSuggestionsTransition(async () => {
         const currentSelectionNames = selectedItemsArray.map(si => si.item.name);
         const suggestions = await getAiSuggestionsAction(currentSelectionNames);
-        // Filter out suggestions that are already selected or not in the current inventory (safety check)
         setAiSuggestions(suggestions.filter(sugg => 
           !selectedItemsMap.has(sugg.id) && allPartsAndServices.some(invItem => invItem.id === sugg.id)
         ));
@@ -100,7 +124,6 @@ export default function NewSubmissionPage() {
     setSelectedItemsMap(prevMap => {
       const newMap = new Map(prevMap);
       if (newMap.has(item.id)) {
-        // No change, quantity adjustment handles it
       } else {
         newMap.set(item.id, { item, quantity: 1 });
       }
@@ -189,14 +212,19 @@ export default function NewSubmissionPage() {
     });
   };
 
-  if (!submissionType || !mechanicId) {
+  if (!submissionType || !mechanicId) { // Checks if essential params/auth data are missing
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Erro</CardTitle>
-              <CardDescription>Parâmetros inválidos. Redirecionando...</CardDescription>
+              <CardTitle>Carregando...</CardTitle>
+              <CardDescription>Verificando informações...</CardDescription>
             </CardHeader>
+             <CardFooter>
+                <Button variant="outline" asChild>
+                    <Link href="/mobile"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar</Link>
+                </Button>
+            </CardFooter>
           </Card>
       </div>
     );
@@ -213,13 +241,19 @@ export default function NewSubmissionPage() {
   
   return (
     <div className="container mx-auto p-4">
+       <Button variant="outline" asChild className="mb-6 group sm:hidden">
+        <Link href="/mobile">
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+          Voltar
+        </Link>
+      </Button>
       <Card className="w-full max-w-2xl mx-auto shadow-xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold font-headline">
             {submissionType === 'quote' ? 'Montar Orçamento' : 'Registrar Serviço Finalizado'}
           </CardTitle>
           <CardDescription>
-            Mecânico: {mechanicId} | Preencha os detalhes abaixo.
+            Registrando como: {mechanicProfile?.displayName || mechanicId}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

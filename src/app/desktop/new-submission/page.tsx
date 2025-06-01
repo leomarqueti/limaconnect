@@ -26,10 +26,9 @@ export default function DesktopNewSubmissionPage() {
   const { toast } = useToast();
 
   const submissionTypeParam = searchParams.get('type');
-  // Explicitly cast to the types this page handles, or null if invalid/missing
-  const submissionType: Extract<SubmissionType, 'quote' | 'finished'> | null = 
-    (submissionTypeParam === 'quote' || submissionTypeParam === 'finished') 
-    ? submissionTypeParam 
+  const submissionType: Extract<SubmissionType, 'quote' | 'finished'> | null =
+    (submissionTypeParam === 'quote' || submissionTypeParam === 'finished')
+    ? submissionTypeParam
     : null;
   
   const mechanicId = searchParams.get('mechanicId'); 
@@ -50,12 +49,11 @@ export default function DesktopNewSubmissionPage() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    // submissionType is now strictly 'quote', 'finished', or null.
     if (!submissionType || !mechanicId) {
       toast({
         variant: "destructive",
         title: "Erro de Parâmetro",
-        description: `Tipo de submissão '${submissionTypeParam || 'ausente'}' inválido para esta página ou ID do usuário do escritório ausente. Redirecionando...`,
+        description: `Tipo de submissão '${submissionTypeParam || 'ausente'}' inválido ou ID do usuário ausente. Redirecionando...`,
       });
       router.replace('/desktop');
       return;
@@ -80,8 +78,15 @@ export default function DesktopNewSubmissionPage() {
     };
 
     fetchInitialData();
-    if (mechanicId) { // Ensure mechanicId is not null before calling getMechanicById
-        setMechanicInfo(getMechanicById(mechanicId)); 
+    if (mechanicId) { 
+        const foundMechanic = getMechanicById(mechanicId);
+        if (foundMechanic) {
+          setMechanicInfo(foundMechanic);
+        } else {
+          // Fallback if mechanicId is not in the predefined list (e.g., a real user UID)
+          // This part might need adjustment if you expect real user profiles here eventually
+          setMechanicInfo({id: mechanicId, name: `Usuário ${mechanicId.substring(0,5)}...`, photoUrl: '', aiHint: 'user avatar' });
+        }
     }
   }, [submissionType, mechanicId, router, toast, submissionTypeParam]);
 
@@ -149,7 +154,7 @@ export default function DesktopNewSubmissionPage() {
   }, [selectedItemsArray]);
 
   const handleSubmit = () => {
-     if (!mechanicId || !submissionType) { // submissionType is now correctly narrowed
+     if (!mechanicId || !submissionType) { 
       toast({ variant: "destructive", title: "Erro", description: "ID do usuário ou tipo de submissão inválido." });
       return;
     }
@@ -180,7 +185,7 @@ export default function DesktopNewSubmissionPage() {
 
       const actionResult = await submitJobAction({
         mechanicId: mechanicId,
-        submissionType: submissionType, // This is now type-safe
+        submissionType: submissionType, 
         selectedItemsData,
         customerName: customerName || undefined,
         vehicleInfo: vehicleInfo || undefined,
@@ -203,12 +208,12 @@ export default function DesktopNewSubmissionPage() {
     });
   };
 
-  if (!submissionType || !mechanicId) { // Guard for initial render before useEffect runs
+  if (!submissionType || !mechanicId) { 
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Carregando...</CardTitle> {/* Or a more specific loading/error message if preferred */}
+              <CardTitle>Carregando...</CardTitle> 
               <CardDescription>Verificando parâmetros...</CardDescription>
             </CardHeader>
              <CardFooter>
@@ -244,7 +249,7 @@ export default function DesktopNewSubmissionPage() {
             {submissionType === 'quote' ? 'Novo Orçamento (Escritório)' : 'Novo Serviço Finalizado (Escritório)'}
           </CardTitle>
           <CardDescription>
-            Registrando como: {mechanicInfo?.name || mechanicId} | Preencha os detalhes abaixo.
+            Registrando como: {mechanicInfo?.name || `ID: ${mechanicId}`} | Preencha os detalhes abaixo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -370,5 +375,3 @@ export default function DesktopNewSubmissionPage() {
     </div>
   );
 }
-
-    

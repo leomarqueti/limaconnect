@@ -20,12 +20,10 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Adiciona o alias para Handlebars para evitar warnings de require.extensions
     config.resolve.alias = {
       ...config.resolve.alias,
       'handlebars': 'handlebars/dist/handlebars.js',
     };
-    // Retorna a configuração modificada
     return config;
   },
 };
