@@ -25,7 +25,13 @@ export default function DesktopNewSubmissionPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const submissionType = searchParams.get('type') as SubmissionType | null;
+  const submissionTypeParam = searchParams.get('type');
+  // Explicitly cast to the types this page handles, or null if invalid/missing
+  const submissionType: Extract<SubmissionType, 'quote' | 'finished'> | null = 
+    (submissionTypeParam === 'quote' || submissionTypeParam === 'finished') 
+    ? submissionTypeParam 
+    : null;
+  
   const mechanicId = searchParams.get('mechanicId'); 
 
   const [isSubmitting, startSubmitTransition] = useTransition();
@@ -44,11 +50,12 @@ export default function DesktopNewSubmissionPage() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
+    // submissionType is now strictly 'quote', 'finished', or null.
     if (!submissionType || !mechanicId) {
       toast({
         variant: "destructive",
         title: "Erro de Parâmetro",
-        description: "Tipo de submissão ou ID do usuário do escritório ausente. Redirecionando...",
+        description: `Tipo de submissão '${submissionTypeParam || 'ausente'}' inválido para esta página ou ID do usuário do escritório ausente. Redirecionando...`,
       });
       router.replace('/desktop');
       return;
@@ -73,8 +80,10 @@ export default function DesktopNewSubmissionPage() {
     };
 
     fetchInitialData();
-    setMechanicInfo(getMechanicById(mechanicId)); 
-  }, [submissionType, mechanicId, router, toast]);
+    if (mechanicId) { // Ensure mechanicId is not null before calling getMechanicById
+        setMechanicInfo(getMechanicById(mechanicId)); 
+    }
+  }, [submissionType, mechanicId, router, toast, submissionTypeParam]);
 
   const selectedItemsArray = useMemo(() => Array.from(selectedItemsMap.values()), [selectedItemsMap]);
 
@@ -140,7 +149,7 @@ export default function DesktopNewSubmissionPage() {
   }, [selectedItemsArray]);
 
   const handleSubmit = () => {
-     if (!mechanicId || !submissionType) {
+     if (!mechanicId || !submissionType) { // submissionType is now correctly narrowed
       toast({ variant: "destructive", title: "Erro", description: "ID do usuário ou tipo de submissão inválido." });
       return;
     }
@@ -171,7 +180,7 @@ export default function DesktopNewSubmissionPage() {
 
       const actionResult = await submitJobAction({
         mechanicId: mechanicId,
-        submissionType: submissionType,
+        submissionType: submissionType, // This is now type-safe
         selectedItemsData,
         customerName: customerName || undefined,
         vehicleInfo: vehicleInfo || undefined,
@@ -194,13 +203,13 @@ export default function DesktopNewSubmissionPage() {
     });
   };
 
-  if (!submissionType || !mechanicId) {
+  if (!submissionType || !mechanicId) { // Guard for initial render before useEffect runs
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Erro de Parâmetro</CardTitle>
-              <CardDescription>Informações inválidas. Verifique e tente novamente ou volte ao painel.</CardDescription>
+              <CardTitle>Carregando...</CardTitle> {/* Or a more specific loading/error message if preferred */}
+              <CardDescription>Verificando parâmetros...</CardDescription>
             </CardHeader>
              <CardFooter>
                 <Button variant="outline" asChild>
@@ -361,3 +370,5 @@ export default function DesktopNewSubmissionPage() {
     </div>
   );
 }
+
+    
