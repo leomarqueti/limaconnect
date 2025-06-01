@@ -4,7 +4,7 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   typescript: {
-    ignoreBuildErrors: false, // Changed from true to false
+    ignoreBuildErrors: false, 
   },
   eslint: {
     ignoreDuringBuilds: true,
@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    // Adiciona o alias para Handlebars para evitar warnings de require.extensions
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'handlebars': 'handlebars/dist/handlebars.js',
+    };
+    // Retorna a configuração modificada
+    return config;
   },
 };
 
