@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { getPartsAndServices, getMechanicById } from '@/lib/data';
-import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType, Mechanic } from '@/types';
+import { getPartsAndServices } from '@/lib/data'; // Removed getMechanicById as it's not used
+import type { PartOrService, SelectedItem as SelectedItemType, SubmissionType, UserProfile } from '@/types'; // Ensured UserProfile is imported
 import { PartServiceCard } from '@/components/shared/PartServiceCard';
 import { Search, Plus, Minus, XCircle, Loader2, Lightbulb, ArrowLeft } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,8 +34,7 @@ export default function NewSubmissionPage() {
     ? submissionTypeParam
     : null;
   
-  // const mechanicId = searchParams.get('mechanicId'); // Will be replaced by logged-in user
-  const mechanicId = user?.uid; // Use logged-in user's ID
+  const mechanicId = user?.uid; 
 
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [isFetchingSuggestions, startFetchingSuggestionsTransition] = useTransition();
@@ -52,7 +51,7 @@ export default function NewSubmissionPage() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (!submissionType) { // Removed mechanicId from this check as it's now from auth user
+    if (!submissionType) {
       toast({
         variant: "destructive",
         title: "Erro de Parâmetro",
@@ -61,13 +60,13 @@ export default function NewSubmissionPage() {
       router.replace('/mobile');
       return;
     }
-    if (!mechanicId) { // Explicitly check if mechanicId (from auth) is available
+    if (!mechanicId && !user?.uid) { 
         toast({
             variant: "destructive",
             title: "Usuário não autenticado",
             description: "Você precisa estar logado para criar uma submissão. Redirecionando...",
         });
-        router.replace('/login?origin=mobile/new-submission'); // Or just /mobile
+        router.replace('/login?origin=mobile/new-submission'); 
         return;
     }
 
@@ -157,7 +156,8 @@ export default function NewSubmissionPage() {
   };
 
   const handleSubmit = () => {
-    if (!mechanicId || !submissionType) {
+    const currentMechanicId = user?.uid; // Re-fetch user.uid in case it wasn't ready at the top
+    if (!currentMechanicId || !submissionType) {
       toast({ variant: "destructive", title: "Erro", description: "ID do mecânico ou tipo de submissão inválido." });
       return;
     }
@@ -188,8 +188,8 @@ export default function NewSubmissionPage() {
       }
 
       const actionResult = await submitJobAction({
-        mechanicId: mechanicId,
-        submissionType: submissionType,
+        mechanicId: currentMechanicId,
+        submissionType: submissionType, // This is now correctly typed as 'quote' | 'finished' or null
         selectedItemsData,
         customerName: customerName || undefined,
         vehicleInfo: vehicleInfo || undefined,
@@ -212,7 +212,7 @@ export default function NewSubmissionPage() {
     });
   };
 
-  if (!submissionType || !mechanicId) { // Checks if essential params/auth data are missing
+  if (!submissionType || (!mechanicId && !user?.uid)) { 
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] p-4">
           <Card className="w-full max-w-md">
@@ -253,7 +253,7 @@ export default function NewSubmissionPage() {
             {submissionType === 'quote' ? 'Montar Orçamento' : 'Registrar Serviço Finalizado'}
           </CardTitle>
           <CardDescription>
-            Registrando como: {mechanicProfile?.displayName || mechanicId}
+            Registrando como: {mechanicProfile?.displayName || user?.email || user?.uid}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
