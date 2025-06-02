@@ -8,10 +8,10 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Keep if used outside RHF, otherwise FormLabel is preferred
+import { Label } from '@/components/ui/label'; 
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"; // Added FormDescription
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"; 
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -162,7 +162,7 @@ export default function TabletCheckinPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto pb-8"> {/* Added pb-8 for spacing */}
+    <div className="max-w-3xl mx-auto pb-8"> 
       <Card className="shadow-xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold font-headline flex items-center">
@@ -272,16 +272,16 @@ export default function TabletCheckinPage() {
                     )}
                      { (item.type === 'boolean' && item.value === true && (item.id === 'exterior_lights' || item.id === 'dashboard_warnings')) || 
                        (item.id === 'tire_condition' && (item.value as string)?.toLowerCase() !== 'bom' && item.value !== '') ||
-                       (item.id === 'exterior_damage_notes' || item.id === 'interior_condition_notes' ) // Keep notes field always visible for textarea type
+                       (item.id === 'exterior_damage_notes' || item.id === 'interior_condition_notes' ) 
                      ? (
                         <Input
-                          id={`${item.id}_notes_detail`} // Changed id to avoid conflict with main input/checkbox
+                          id={`${item.id}_notes_detail`} 
                           value={checklist[index].notes || ''}
                           onChange={(e) => handleChecklistItemChange(index, 'notes', e.target.value)}
                           placeholder={`Observações para ${item.label.toLowerCase()}...`}
                           className="mt-2 text-sm"
                         />
-                    ) : (item.type === 'boolean' && item.notes) ? ( // Show notes if boolean but no specific condition met but notes field is not empty (e.g. manually set for other booleans)
+                    ) : (item.type === 'boolean' && item.notes) ? ( 
                        <p className="text-xs text-muted-foreground mt-1"><em>Obs: {item.notes}</em></p>
                     ) : null}
 
@@ -296,41 +296,33 @@ export default function TabletCheckinPage() {
 
               <section className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center"><Camera className="mr-2 h-5 w-5 text-primary" />Fotos do Veículo</h3>
-                <FormField
-                  name="photos" // Not directly used by RHF schema, but good for context
-                  control={form.control} // Added control for RHF context
-                  render={() => ( // Used render prop
-                    <FormItem>
-                      <FormLabel htmlFor="photo-upload" className="sr-only">Upload de fotos</FormLabel>
-                      <FormControl>
-                        <Input 
-                          id="photo-upload" 
-                          type="file" 
-                          accept="image/*" 
-                          multiple 
-                          onChange={handlePhotoChange}
-                          ref={photoInputRef} // Assign ref
-                          className="block w-full text-sm text-slate-500
-                            file:mr-4 file:py-2 file:px-4
-                            file:rounded-full file:border-0
-                            file:text-sm file:font-semibold
-                            file:bg-primary/10 file:text-primary
-                            hover:file:bg-primary/20
-                            cursor-pointer"
-                        />
-                      </FormControl>
-                      <FormDescription className="mt-1">
-                        Selecione uma ou mais fotos do veículo (arranhões, painel, etc.). Máximo 5MB por foto.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="photo-upload" className="sr-only">Upload de fotos</Label>
+                  <Input 
+                    id="photo-upload" 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    onChange={handlePhotoChange}
+                    ref={photoInputRef} 
+                    className="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-primary/10 file:text-primary
+                      hover:file:bg-primary/20
+                      cursor-pointer"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Selecione uma ou mais fotos do veículo (arranhões, painel, etc.). Máximo 5MB por foto.
+                  </p>
+                </div>
+                
                 {photoPreviews.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
                     {photoPreviews.map((previewUrl, index) => (
-                      <div key={index} className="relative group aspect-video sm:aspect-square"> {/* Changed to aspect-video for wider tablet view */}
-                        <Image src={previewUrl} alt={`Preview ${index + 1}`} fill className="rounded-md object-contain border bg-muted" /> {/* Changed to object-contain */}
+                      <div key={index} className="relative group aspect-video sm:aspect-square"> 
+                        <Image src={previewUrl} alt={`Preview ${index + 1}`} fill className="rounded-md object-contain border bg-muted" /> 
                         <Button
                           type="button"
                           variant="destructive"
@@ -369,3 +361,4 @@ export default function TabletCheckinPage() {
   );
 }
 
+    
